@@ -1,5 +1,7 @@
 # Binalyze AIR API Toolkit
 
+**Version:** 0.2.0
+
 Python scripts for interacting with the Binalyze AIR API -- enumerate organizations, cases, and download forensic evidence data.
 
 ## Project Structure
@@ -150,4 +152,6 @@ Key endpoints used:
 | `POST /api/public/investigation-hub/investigations/{id}/sections`                           | List evidence sections |
 | `POST /api/public/investigation-hub/investigations/{id}/platform/{p}/evidence-category/{c}` | Download evidence data |
 
+## Changelog
 
+See [CHANGELOG.md](CHANGELOG.md) for the full release history.

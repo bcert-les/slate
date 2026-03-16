@@ -5,8 +5,9 @@ Python scripts for interacting with the Binalyze AIR API -- enumerate organizati
 ## Project Structure
 
 ```
-hackathon/
-  .env                  # API credentials (not committed)
+slate/
+  
+              # API credentials (not committed)
   requirements.txt      # Python dependencies
   lib/                  # Shared library code
     api_client.py       # HTTP helpers, auth, retry w/ backoff
@@ -27,16 +28,11 @@ hackathon/
 ## Setup
 
 1. **Install dependencies:**
-   ```bash
+  ```bash
    pip install -r requirements.txt
-   ```
-
+  ```
 2. **Configure environment:**
-   Create a `.env` file in the project root:
-   ```env
-   BINALYZE_AIR_HOST=https://your-tenant.binalyze.com
-   BINALYZE_API_TOKEN=api_your_token_here
-   ```
+  Create a `.env` file in the project root:
 
 ## Scripts
 
@@ -107,6 +103,7 @@ python3 scripts/case_download_evidence.py <investigation_id> tcp_table --format 
 **SQLite output** goes to `output/evidence.db` (one table per evidence category). **CSV/JSON output** is split per-endpoint into `output/evidence_<category>_<endpoint>.[csv|json]`.
 
 Production features:
+
 - **Streaming writes**: each API page is written to SQLite immediately (memory = O(page_size), not O(total))
 - **Dedup**: unique index on `(air_id, air_task_assignment_id)` with `INSERT OR IGNORE`
 - **Checkpoint**: resume interrupted downloads from last successful page
@@ -144,10 +141,13 @@ See [docs/API_README.md](docs/API_README.md) for the full list of Binalyze AIR A
 
 Key endpoints used:
 
-| Endpoint | Description |
-|---|---|
-| `GET /api/public/organizations` | List organizations |
-| `GET /api/public/cases` | List/filter cases |
-| `GET /api/public/cases/{id}/tasks` | Get case tasks |
-| `POST /api/public/investigation-hub/investigations/{id}/sections` | List evidence sections |
+
+| Endpoint                                                                                    | Description            |
+| ------------------------------------------------------------------------------------------- | ---------------------- |
+| `GET /api/public/organizations`                                                             | List organizations     |
+| `GET /api/public/cases`                                                                     | List/filter cases      |
+| `GET /api/public/cases/{id}/tasks`                                                          | Get case tasks         |
+| `POST /api/public/investigation-hub/investigations/{id}/sections`                           | List evidence sections |
 | `POST /api/public/investigation-hub/investigations/{id}/platform/{p}/evidence-category/{c}` | Download evidence data |
+
+

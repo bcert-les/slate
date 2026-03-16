@@ -15,44 +15,54 @@ def try_investigation_hub(air_host, api_token, investigation_id):
     """Try Investigation Hub API endpoints (available on some tenant tiers)."""
     results = {}
 
-    resp = api_get(air_host, api_token, f"/api/public/investigation-hub/{investigation_id}/evidence/data-structure")
+    base = f"/api/public/investigation-hub/investigations/{investigation_id}"
+
+    resp = api_get(air_host, api_token, f"{base}/evidence/data-structure")
     if resp.ok:
         results["dataStructure"] = resp.json()
 
-    resp = api_get(air_host, api_token, f"/api/public/investigation-hub/{investigation_id}/assets")
+    resp = api_get(air_host, api_token, f"{base}/assets")
     if resp.ok:
         results["assets"] = resp.json()
 
-    resp = api_get(air_host, api_token, f"/api/public/investigation-hub/{investigation_id}/evidence/counts")
+    resp = api_get(air_host, api_token, f"{base}/evidence/counts")
     if resp.ok:
         results["evidenceCounts"] = resp.json()
 
-    resp = api_get(air_host, api_token, f"/api/public/investigation-hub/{investigation_id}/findings/data-structure")
+    resp = api_get(air_host, api_token, f"{base}/findings/data-structure")
     if resp.ok:
         results["findingsStructure"] = resp.json()
 
-    resp = api_post(air_host, api_token, f"/api/public/investigation-hub/{investigation_id}/findings/summary", {})
+    resp = api_post(air_host, api_token, f"{base}/findings/summary", {})
     if resp.ok:
         results["findingsSummary"] = resp.json()
 
     return results if results else None
 
 
-def get_case_by_investigation_id(air_host, api_token, investigation_id, org_ids=None):
-    """Find the case associated with this investigation ID."""
-    params = {"pageNumber": 1, "pageSize": 100}
-    if org_ids:
-        params["filter[organizationIds]"] = org_ids
+def get_case_by_investigation_id(air_host, api_token, investigation_id, org_id=None):
+    """Find the case associated with this investigation ID.
 
-    resp = api_get(air_host, api_token, "/api/public/cases", params)
-    if not resp.ok:
-        return None
+    If org_id is given, searches that org only. Otherwise fetches all orgs
+    and searches each one (the cases endpoint requires an organizationId filter).
+    """
+    if org_id:
+        org_ids_to_search = [org_id]
+    else:
+        orgs = paginate_get(air_host, api_token, "/api/public/organizations", verbose=False)
+        org_ids_to_search = [
+            o.get("_id") or o.get("id") or o.get("organizationId") for o in orgs
+        ]
+        org_ids_to_search = [oid for oid in org_ids_to_search if oid]
 
-    entities = resp.json().get("result", {}).get("entities", [])
-    for case in entities:
-        meta = case.get("metadata") or {}
-        if meta.get("investigationId") == investigation_id:
-            return case
+    for oid in org_ids_to_search:
+        params = {"filter[organizationIds]": oid}
+        cases = paginate_get(air_host, api_token, "/api/public/cases", params=params, verbose=False)
+        for case in cases:
+            meta = case.get("metadata") or {}
+            if meta.get("investigationId") == investigation_id:
+                return case
+
     return None
 
 
@@ -215,10 +225,6 @@ def main():
 
         print("Looking up case for this investigation...", flush=True)
         case = get_case_by_investigation_id(air_host, api_token, investigation_id, org_id)
-
-        if not case:
-            print("  Not found with org filter, searching all cases...", flush=True)
-            case = get_case_by_investigation_id(air_host, api_token, investigation_id)
 
         if not case:
             print(f"\nError: Could not find a case with investigation ID: {investigation_id}", file=sys.stderr)

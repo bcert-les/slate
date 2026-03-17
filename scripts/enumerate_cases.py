@@ -20,36 +20,42 @@ def main():
     org_id = sys.argv[1]
     status_filter = sys.argv[2] if len(sys.argv) > 2 else "open"
 
-    print(f"Connecting to {air_host}/api/public/cases...")
-    print(f"Fetching cases for organization ID: {org_id}, status: {status_filter}")
+    try:
+        print(f"Connecting to {air_host}/api/public/cases...")
+        print(f"Fetching cases for organization ID: {org_id}, status: {status_filter}")
 
-    params = {
-        "filter[organizationIds]": org_id,
-        "filter[status]": status_filter,
-    }
+        params = {
+            "filter[organizationIds]": org_id,
+            "filter[status]": status_filter,
+        }
 
-    cases = paginate_get(air_host, api_token, "/api/public/cases", params=params)
+        cases = paginate_get(air_host, api_token, "/api/public/cases", params=params)
 
-    print(f"\nFound {len(cases)} {status_filter} case(s) in organization {org_id}:")
+        print(f"\nFound {len(cases)} {status_filter} case(s) in organization {org_id}:")
 
-    if not cases:
-        print("  (No cases found)")
-    else:
-        for case in cases:
-            case_id = case.get("_id") or case.get("id") or case.get("caseId")
-            name = case.get("name") or case.get("title")
-            status = case.get("status")
-            created = case.get("createdAt")
-            owner = case.get("owner")
-            metadata = case.get("metadata") or {}
-            investigation_id = metadata.get("investigationId")
+        if not cases:
+            print("  (No cases found)")
+        else:
+            for case in cases:
+                case_id = case.get("_id") or case.get("id") or case.get("caseId")
+                name = case.get("name") or case.get("title")
+                status = case.get("status")
+                created = case.get("createdAt")
+                owner = case.get("owner")
+                metadata = case.get("metadata") or {}
+                investigation_id = metadata.get("investigationId")
 
-            print(f"\n- Case ID: {case_id}")
-            print(f"  Name: {name}")
-            print(f"  Status: {status}")
-            print(f"  Owner: {owner}")
-            print(f"  Created: {created}")
-            print(f"  Investigation ID: {investigation_id}")
+                print(f"\n- Case ID: {case_id}")
+                print(f"  Name: {name}")
+                print(f"  Status: {status}")
+                print(f"  Owner: {owner}")
+                print(f"  Created: {created}")
+                print(f"  Investigation ID: {investigation_id}")
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
+        sys.exit(2)
 
 
 if __name__ == "__main__":

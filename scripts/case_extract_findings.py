@@ -4,121 +4,128 @@ import json
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from lib.api_client import load_config, api_get
+from lib.api_client import load_config, api_get, api_post
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUTPUT_DIR = os.path.join(PROJECT_ROOT, "output")
 
 
-def try_endpoint(air_host, api_token, endpoint_path, params=None):
-    """Try a specific endpoint and return data if successful."""
-    resp = api_get(air_host, api_token, endpoint_path, params=params)
+def try_get(air_host, api_token, path, params=None):
+    resp = api_get(air_host, api_token, path, params=params)
     if resp.ok:
         return resp.json(), resp.status_code
     return None, resp.status_code
 
 
-def extract_findings(air_host, api_token, org_id, case_id, page_size=100):
-    """Attempt to extract findings from a case by probing multiple endpoints."""
-    endpoint_patterns = [
-        f"/api/public/cases/{case_id}",
-        f"/api/public/cases/{case_id}/endpoints",
-        f"/api/public/cases/{case_id}/tasks",
-        f"/api/public/cases/{case_id}/acquisitions",
-        f"/api/public/acquisitions",
-        f"/api/public/tasks",
-        f"/api/public/cases/{case_id}/findings",
-        f"/api/public/cases/{case_id}/evidence",
-        f"/api/public/investigations",
+def try_post(air_host, api_token, path, body=None):
+    resp = api_post(air_host, api_token, path, body=body or {})
+    if resp.ok:
+        return resp.json(), resp.status_code
+    return None, resp.status_code
+
+
+def get_investigation_id(air_host, api_token, case_id):
+    """Fetch a case and return its investigation ID."""
+    data, status = try_get(air_host, api_token, f"/api/public/cases/{case_id}")
+    if data is None:
+        return None
+    result = data.get("result", data)
+    return (result.get("metadata") or {}).get("investigationId")
+
+
+def probe_endpoints(air_host, api_token, org_id, case_id, investigation_id):
+    """Probe case and Investigation Hub endpoints, returning those that respond."""
+
+    endpoints = [
+        ("GET",  f"/api/public/cases/{case_id}",
+         {"filter[organizationIds]": org_id}),
+        ("GET",  f"/api/public/cases/{case_id}/endpoints",
+         {"filter[organizationIds]": org_id, "page": 1, "pageSize": 100}),
+        ("GET",  f"/api/public/cases/{case_id}/tasks",
+         {"page": 1, "pageSize": 100}),
     ]
 
-    print(f"Attempting to extract findings from case {case_id} in organization {org_id}...")
-    print(f"Testing various endpoint patterns...\n")
+    if investigation_id:
+        hub = f"/api/public/investigation-hub/investigations/{investigation_id}"
+        endpoints += [
+            ("GET",  f"{hub}/assets", None),
+            ("GET",  f"{hub}/evidence/data-structure", None),
+            ("GET",  f"{hub}/evidence/counts", None),
+            ("GET",  f"{hub}/findings/data-structure", None),
+            ("POST", f"{hub}/findings/summary", None),
+            ("GET",  f"{hub}/sections", None),
+        ]
 
-    successful_endpoints = []
+    print(f"Probing {len(endpoints)} endpoints...\n")
+    results = []
 
-    for endpoint in endpoint_patterns:
-        params = {"page": 1, "pageSize": page_size}
-
-        if "/acquisitions" in endpoint and case_id not in endpoint:
-            params["filter[caseIds]"] = case_id
-        elif "/tasks" in endpoint and case_id not in endpoint:
-            params["filter[caseIds]"] = case_id
-        elif "/investigations" in endpoint:
-            params["filter[caseIds]"] = case_id
-
-        print(f"Trying: {air_host}{endpoint}", flush=True)
-        data, status = try_endpoint(air_host, api_token, endpoint, params)
+    for method, path, params in endpoints:
+        print(f"  {method} {path}", end="", flush=True)
+        if method == "POST":
+            data, status = try_post(air_host, api_token, path)
+        else:
+            data, status = try_get(air_host, api_token, path, params)
 
         if data is not None:
-            print(f"  SUCCESS (HTTP {status})\n")
-            successful_endpoints.append({
-                "endpoint": endpoint,
-                "data": data,
-                "status": status,
-                "params": params,
-            })
+            print(f"  -> {status} OK")
+            results.append({"method": method, "endpoint": path, "data": data, "status": status})
         else:
-            print(f"  Failed (HTTP {status})\n")
+            print(f"  -> {status} Failed")
 
-    return successful_endpoints
+    return results
 
 
 def display_findings(endpoints_data):
-    """Display findings from successful endpoints."""
     if not endpoints_data:
         print("\nNo successful endpoints found.")
         print("\nPossible reasons:")
-        print("  1. The findings API endpoint may have a different path")
-        print("  2. Your API token may not have permissions to view findings")
-        print("  3. The case may not have any findings yet")
+        print("  1. Your API token may not have permissions")
+        print("  2. The case may not have completed acquisition yet")
         return
 
     print(f"\n{'='*80}")
-    print(f"RESULTS: Found {len(endpoints_data)} successful endpoint(s)")
-    print(f"{'='*80}\n")
+    print(f"RESULTS: {len(endpoints_data)} endpoint(s) returned data")
+    print(f"{'='*80}")
 
-    for idx, endpoint_info in enumerate(endpoints_data, 1):
-        endpoint = endpoint_info["endpoint"]
-        data = endpoint_info["data"]
-
-        print(f"\n[{idx}] Endpoint: {endpoint}")
+    for idx, info in enumerate(endpoints_data, 1):
+        data = info["data"]
+        print(f"\n[{idx}] {info['method']} {info['endpoint']}")
         print(f"{'─'*80}")
 
-        if isinstance(data, dict):
-            if "result" in data and isinstance(data["result"], dict):
-                result = data["result"]
-                if "entities" in result:
-                    entities = result["entities"]
-                    print(f"Found {len(entities)} item(s)\n")
-                    if isinstance(entities, list) and len(entities) > 0:
-                        for i, entity in enumerate(entities[:5], 1):
-                            print(f"  Item {i}:")
-                            if isinstance(entity, dict):
-                                for key, value in entity.items():
-                                    if not key.startswith('_') and value is not None:
-                                        str_value = str(value)
-                                        if len(str_value) > 100:
-                                            str_value = str_value[:100] + "..."
-                                        print(f"    {key}: {str_value}")
-                            print()
-                        if len(entities) > 5:
-                            print(f"  ... and {len(entities) - 5} more items\n")
-                else:
-                    print("Result data:")
-                    for key, value in result.items():
-                        if not key.startswith('_'):
-                            print(f"  {key}: {value}")
-            else:
-                print("Response structure:")
-                for key in data.keys():
-                    print(f"  - {key}")
+        if not isinstance(data, dict):
+            print(f"  (non-dict response: {type(data).__name__})")
+            continue
 
-        print()
+        result = data.get("result", data)
+
+        if isinstance(result, dict) and "entities" in result:
+            entities = result["entities"]
+            print(f"  {len(entities)} item(s)")
+            for i, entity in enumerate(entities[:3], 1):
+                if isinstance(entity, dict):
+                    preview = {k: v for k, v in list(entity.items())[:6]
+                               if v is not None and not str(k).startswith("_")}
+                    print(f"    [{i}] {json.dumps(preview, default=str)[:200]}")
+            if len(entities) > 3:
+                print(f"    ... and {len(entities) - 3} more")
+        elif isinstance(result, list):
+            print(f"  {len(result)} item(s)")
+            for i, item in enumerate(result[:3], 1):
+                print(f"    [{i}] {json.dumps(item, default=str)[:200]}")
+            if len(result) > 3:
+                print(f"    ... and {len(result) - 3} more")
+        elif isinstance(result, dict):
+            for key in list(result.keys())[:10]:
+                val = result[key]
+                val_str = json.dumps(val, default=str) if isinstance(val, (dict, list)) else str(val)
+                if len(val_str) > 120:
+                    val_str = val_str[:120] + "..."
+                print(f"    {key}: {val_str}")
+
+    print()
 
 
 def save_to_file(endpoints_data, org_id, case_id):
-    """Save findings to a JSON file."""
     if not endpoints_data:
         return
     os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -140,7 +147,14 @@ def main():
     case_id = sys.argv[2]
 
     try:
-        endpoints_data = extract_findings(air_host, api_token, org_id, case_id)
+        print(f"Looking up investigation ID for case {case_id}...", flush=True)
+        investigation_id = get_investigation_id(air_host, api_token, case_id)
+        if investigation_id:
+            print(f"  Investigation ID: {investigation_id}\n")
+        else:
+            print("  No investigation ID found -- skipping Investigation Hub endpoints.\n")
+
+        endpoints_data = probe_endpoints(air_host, api_token, org_id, case_id, investigation_id)
         display_findings(endpoints_data)
         if endpoints_data:
             save_to_file(endpoints_data, org_id, case_id)

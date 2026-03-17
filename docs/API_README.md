@@ -182,11 +182,11 @@ The workflow to retrieve findings:
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/public/investigation-hub/{investigationId}/findings/data-structure` | Get findings schema/column structure |
-| `POST` | `/api/public/investigation-hub/{investigationId}/findings/filter` | **Filter and retrieve findings** |
-| `POST` | `/api/public/investigation-hub/{investigationId}/findings/summary` | Get findings summary (counts by severity) |
-| `POST` | `/api/public/investigation-hub/{investigationId}/findings/export` | Create export request for findings |
-| `GET` | `/api/public/investigation-hub/{investigationId}/findings/export` | Download exported findings |
+| `GET` | `/api/public/investigation-hub/investigations/{investigationId}/findings/data-structure` | Get findings schema/column structure |
+| `POST` | `/api/public/investigation-hub/investigations/{investigationId}/findings/filter` | **Filter and retrieve findings** |
+| `POST` | `/api/public/investigation-hub/investigations/{investigationId}/findings/summary` | Get findings summary (counts by severity) |
+| `POST` | `/api/public/investigation-hub/investigations/{investigationId}/findings/export` | Create export request for findings |
+| `GET` | `/api/public/investigation-hub/investigations/{investigationId}/findings/export` | Download exported findings |
 
 #### Findings Filter Request Body
 
@@ -214,139 +214,139 @@ The workflow to retrieve findings:
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/public/investigation-hub/{investigationId}/assets` | Get assets/endpoints for investigation (returns `assignmentIds`) |
-| `GET` | `/api/public/investigation-hub/{investigationId}/summary` | Get investigation summary |
-| `GET` | `/api/public/investigation-hub/{investigationId}` | Get investigation by ID |
-| `PUT` | `/api/public/investigation-hub/{investigationId}` | Update investigation |
+| `GET` | `/api/public/investigation-hub/investigations/{investigationId}/assets` | Get assets/endpoints for investigation (returns `assignmentIds`) |
+| `GET` | `/api/public/investigation-hub/investigations/{investigationId}/summary` | Get investigation summary |
+| `GET` | `/api/public/investigation-hub/investigations/{investigationId}` | Get investigation by ID |
+| `PUT` | `/api/public/investigation-hub/investigations/{investigationId}` | Update investigation |
 
 ### Evidence Data
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/public/investigation-hub/{investigationId}/evidence/data-structure` | Get evidence data structure |
-| `POST` | `/api/public/investigation-hub/{investigationId}/evidence/data` | Get evidence data rows |
-| `GET` | `/api/public/investigation-hub/{investigationId}/evidence/relation-data` | Get evidence relation data |
-| `GET` | `/api/public/investigation-hub/{investigationId}/evidence/counts` | Get evidence counts |
-| `GET` | `/api/public/investigation-hub/{investigationId}/sections` | Get sections by endpoints |
-| `POST` | `/api/public/investigation-hub/{investigationId}/evidence/export` | Create evidence export request |
-| `GET` | `/api/public/investigation-hub/{investigationId}/evidence/export` | Download exported evidence |
+| `GET` | `/api/public/investigation-hub/investigations/{investigationId}/evidence/data-structure` | Get evidence data structure |
+| `POST` | `/api/public/investigation-hub/investigations/{investigationId}/evidence/data` | Get evidence data rows |
+| `GET` | `/api/public/investigation-hub/investigations/{investigationId}/evidence/relation-data` | Get evidence relation data |
+| `GET` | `/api/public/investigation-hub/investigations/{investigationId}/evidence/counts` | Get evidence counts |
+| `GET` | `/api/public/investigation-hub/investigations/{investigationId}/sections` | Get sections by endpoints |
+| `POST` | `/api/public/investigation-hub/investigations/{investigationId}/evidence/export` | Create evidence export request |
+| `GET` | `/api/public/investigation-hub/investigations/{investigationId}/evidence/export` | Download exported evidence |
 
 ### MITRE ATT&CK
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/api/public/investigation-hub/{investigationId}/mitre/matches` | Get MITRE technique matches |
+| `POST` | `/api/public/investigation-hub/investigations/{investigationId}/mitre/matches` | Get MITRE technique matches |
 
 ### Flags & Bookmarks
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/public/investigation-hub/{investigationId}/flags` | List flags |
-| `POST` | `/api/public/investigation-hub/{investigationId}/flags` | Create flag |
-| `PUT` | `/api/public/investigation-hub/{investigationId}/flags/{flagId}` | Update flag |
-| `DELETE` | `/api/public/investigation-hub/{investigationId}/flags/{flagId}` | Delete flag |
-| `POST` | `/api/public/investigation-hub/{investigationId}/evidence/flag` | Flag evidence |
-| `DELETE` | `/api/public/investigation-hub/{investigationId}/evidence/flag` | Remove evidence flag |
-| `POST` | `/api/public/investigation-hub/{investigationId}/flags/export` | Create flags export request |
-| `GET` | `/api/public/investigation-hub/{investigationId}/flags/export` | Download exported flags |
+| `GET` | `/api/public/investigation-hub/investigations/{investigationId}/flags` | List flags |
+| `POST` | `/api/public/investigation-hub/investigations/{investigationId}/flags` | Create flag |
+| `PUT` | `/api/public/investigation-hub/investigations/{investigationId}/flags/{flagId}` | Update flag |
+| `DELETE` | `/api/public/investigation-hub/investigations/{investigationId}/flags/{flagId}` | Delete flag |
+| `POST` | `/api/public/investigation-hub/investigations/{investigationId}/evidence/flag` | Flag evidence |
+| `DELETE` | `/api/public/investigation-hub/investigations/{investigationId}/evidence/flag` | Remove evidence flag |
+| `POST` | `/api/public/investigation-hub/investigations/{investigationId}/flags/export` | Create flags export request |
+| `GET` | `/api/public/investigation-hub/investigations/{investigationId}/flags/export` | Download exported flags |
 
 ### Comments
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/public/investigation-hub/{investigationId}/comments` | List comments |
-| `POST` | `/api/public/investigation-hub/{investigationId}/comments` | Add comment |
-| `DELETE` | `/api/public/investigation-hub/{investigationId}/comments/{commentId}` | Delete comment |
+| `GET` | `/api/public/investigation-hub/investigations/{investigationId}/comments` | List comments |
+| `POST` | `/api/public/investigation-hub/investigations/{investigationId}/comments` | Add comment |
+| `DELETE` | `/api/public/investigation-hub/investigations/{investigationId}/comments/{commentId}` | Delete comment |
 
 ### Finding Exclusion Rules
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/public/investigation-hub/{investigationId}/exclusions` | List exclusion rules |
-| `POST` | `/api/public/investigation-hub/{investigationId}/exclusions` | Add exclusion rule |
-| `DELETE` | `/api/public/investigation-hub/{investigationId}/exclusions/{ruleId}` | Delete exclusion rule |
-| `DELETE` | `/api/public/investigation-hub/{investigationId}/exclusions/individual/{ruleId}` | Delete individual exclusion |
-| `GET` | `/api/public/investigation-hub/{investigationId}/exclusions/reasons` | Get exclusion reasons |
-| `GET` | `/api/public/investigation-hub/{investigationId}/exclusions/matches` | Get exclusion rule matches |
-| `POST` | `/api/public/investigation-hub/{investigationId}/exclusions/apply/all-assets` | Apply exclusion for all assets |
-| `POST` | `/api/public/investigation-hub/{investigationId}/exclusions/apply/organization` | Apply exclusion for organization |
+| `GET` | `/api/public/investigation-hub/investigations/{investigationId}/exclusions` | List exclusion rules |
+| `POST` | `/api/public/investigation-hub/investigations/{investigationId}/exclusions` | Add exclusion rule |
+| `DELETE` | `/api/public/investigation-hub/investigations/{investigationId}/exclusions/{ruleId}` | Delete exclusion rule |
+| `DELETE` | `/api/public/investigation-hub/investigations/{investigationId}/exclusions/individual/{ruleId}` | Delete individual exclusion |
+| `GET` | `/api/public/investigation-hub/investigations/{investigationId}/exclusions/reasons` | Get exclusion reasons |
+| `GET` | `/api/public/investigation-hub/investigations/{investigationId}/exclusions/matches` | Get exclusion rule matches |
+| `POST` | `/api/public/investigation-hub/investigations/{investigationId}/exclusions/apply/all-assets` | Apply exclusion for all assets |
+| `POST` | `/api/public/investigation-hub/investigations/{investigationId}/exclusions/apply/organization` | Apply exclusion for organization |
 
 ### Findings Marking
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/api/public/investigation-hub/{investigationId}/evidence/mark-as-finding` | Mark evidence as finding |
-| `PUT` | `/api/public/investigation-hub/{investigationId}/findings/{findingId}` | Update finding |
+| `POST` | `/api/public/investigation-hub/investigations/{investigationId}/evidence/mark-as-finding` | Mark evidence as finding |
+| `PUT` | `/api/public/investigation-hub/investigations/{investigationId}/findings/{findingId}` | Update finding |
 
 ### Timeline
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/api/public/investigation-hub/{investigationId}/timeline/filter` | Filter timeline events |
-| `GET` | `/api/public/investigation-hub/{investigationId}/timeline/structure` | Get timeline structure |
-| `GET` | `/api/public/investigation-hub/{investigationId}/timeline/total-count` | Get total timeline count |
-| `POST` | `/api/public/investigation-hub/{investigationId}/timeline/count` | Get count by advanced filter |
-| `POST` | `/api/public/investigation-hub/{investigationId}/timeline/export` | Create timeline export request |
-| `GET` | `/api/public/investigation-hub/{investigationId}/timeline/export` | Download exported timeline |
+| `POST` | `/api/public/investigation-hub/investigations/{investigationId}/timeline/filter` | Filter timeline events |
+| `GET` | `/api/public/investigation-hub/investigations/{investigationId}/timeline/structure` | Get timeline structure |
+| `GET` | `/api/public/investigation-hub/investigations/{investigationId}/timeline/total-count` | Get total timeline count |
+| `POST` | `/api/public/investigation-hub/investigations/{investigationId}/timeline/count` | Get count by advanced filter |
+| `POST` | `/api/public/investigation-hub/investigations/{investigationId}/timeline/export` | Create timeline export request |
+| `GET` | `/api/public/investigation-hub/investigations/{investigationId}/timeline/export` | Download exported timeline |
 
 ### Global Search
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/api/public/investigation-hub/{investigationId}/global-search` | Global search within investigation |
+| `POST` | `/api/public/investigation-hub/investigations/{investigationId}/global-search` | Global search within investigation |
 
 ### Reports
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/public/investigation-hub/{investigationId}/reports` | List reports |
-| `GET` | `/api/public/investigation-hub/{investigationId}/reports/export` | Export reports |
-| `POST` | `/api/public/investigation-hub/{investigationId}/reports` | Create report |
-| `GET` | `/api/public/investigation-hub/{investigationId}/reports/{reportId}` | Get report |
-| `PUT` | `/api/public/investigation-hub/{investigationId}/reports/{reportId}` | Update report |
-| `DELETE` | `/api/public/investigation-hub/{investigationId}/reports/{reportId}` | Delete report |
-| `POST` | `/api/public/investigation-hub/{investigationId}/reports/{reportId}/generate-pdf` | Generate PDF report |
-| `GET` | `/api/public/investigation-hub/{investigationId}/reports/{reportId}/download-pdf` | Download PDF report |
+| `GET` | `/api/public/investigation-hub/investigations/{investigationId}/reports` | List reports |
+| `GET` | `/api/public/investigation-hub/investigations/{investigationId}/reports/export` | Export reports |
+| `POST` | `/api/public/investigation-hub/investigations/{investigationId}/reports` | Create report |
+| `GET` | `/api/public/investigation-hub/investigations/{investigationId}/reports/{reportId}` | Get report |
+| `PUT` | `/api/public/investigation-hub/investigations/{investigationId}/reports/{reportId}` | Update report |
+| `DELETE` | `/api/public/investigation-hub/investigations/{investigationId}/reports/{reportId}` | Delete report |
+| `POST` | `/api/public/investigation-hub/investigations/{investigationId}/reports/{reportId}/generate-pdf` | Generate PDF report |
+| `GET` | `/api/public/investigation-hub/investigations/{investigationId}/reports/{reportId}/download-pdf` | Download PDF report |
 
 ### Activities
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/public/investigation-hub/{investigationId}/activities` | List investigation activities |
-| `POST` | `/api/public/investigation-hub/{investigationId}/activities/mark-as-read` | Mark activities as read |
+| `GET` | `/api/public/investigation-hub/investigations/{investigationId}/activities` | List investigation activities |
+| `POST` | `/api/public/investigation-hub/investigations/{investigationId}/activities/mark-as-read` | Mark activities as read |
 
 ### Advanced Filters
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/public/investigation-hub/{investigationId}/advanced-filters` | List saved filters |
-| `POST` | `/api/public/investigation-hub/{investigationId}/advanced-filters` | Create filter |
-| `PUT` | `/api/public/investigation-hub/{investigationId}/advanced-filters/{filterId}` | Update filter |
-| `DELETE` | `/api/public/investigation-hub/{investigationId}/advanced-filters/{filterId}` | Delete filter |
+| `GET` | `/api/public/investigation-hub/investigations/{investigationId}/advanced-filters` | List saved filters |
+| `POST` | `/api/public/investigation-hub/investigations/{investigationId}/advanced-filters` | Create filter |
+| `PUT` | `/api/public/investigation-hub/investigations/{investigationId}/advanced-filters/{filterId}` | Update filter |
+| `DELETE` | `/api/public/investigation-hub/investigations/{investigationId}/advanced-filters/{filterId}` | Delete filter |
 
 ### Data Import
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/api/public/investigation-hub/{investigationId}/evidence` | Create investigation evidence |
-| `PUT` | `/api/public/investigation-hub/{investigationId}/evidence/{evidenceId}` | Update investigation evidence |
-| `POST` | `/api/public/investigation-hub/{investigationId}/evidence/import` | Import data to investigation |
-| `POST` | `/api/public/investigation-hub/{investigationId}/import/pst` | Import PST evidence |
-| `POST` | `/api/public/investigation-hub/{investigationId}/import/tornado` | Import Tornado evidence |
-| `GET` | `/api/public/investigation-hub/{investigationId}/imports` | Get all imports |
-| `DELETE` | `/api/public/investigation-hub/{investigationId}/imports/{importId}` | Delete import |
-| `GET` | `/api/public/investigation-hub/{investigationId}/imports/{importId}/errors` | Get import errors |
-| `POST` | `/api/public/investigation-hub/{investigationId}/imports/{importId}/retry` | Retry import |
-| `GET` | `/api/public/investigation-hub/{investigationId}/import-progress` | Get data import progress |
-| `GET` | `/api/public/investigation-hub/{investigationId}/task-assignment-import-progress` | Get task assignment import progress |
-| `GET` | `/api/public/investigation-hub/{investigationId}/imported-evidence-task-assignment` | Get imported evidence task assignment |
+| `POST` | `/api/public/investigation-hub/investigations/{investigationId}/evidence` | Create investigation evidence |
+| `PUT` | `/api/public/investigation-hub/investigations/{investigationId}/evidence/{evidenceId}` | Update investigation evidence |
+| `POST` | `/api/public/investigation-hub/investigations/{investigationId}/evidence/import` | Import data to investigation |
+| `POST` | `/api/public/investigation-hub/investigations/{investigationId}/import/pst` | Import PST evidence |
+| `POST` | `/api/public/investigation-hub/investigations/{investigationId}/import/tornado` | Import Tornado evidence |
+| `GET` | `/api/public/investigation-hub/investigations/{investigationId}/imports` | Get all imports |
+| `DELETE` | `/api/public/investigation-hub/investigations/{investigationId}/imports/{importId}` | Delete import |
+| `GET` | `/api/public/investigation-hub/investigations/{investigationId}/imports/{importId}/errors` | Get import errors |
+| `POST` | `/api/public/investigation-hub/investigations/{investigationId}/imports/{importId}/retry` | Retry import |
+| `GET` | `/api/public/investigation-hub/investigations/{investigationId}/import-progress` | Get data import progress |
+| `GET` | `/api/public/investigation-hub/investigations/{investigationId}/task-assignment-import-progress` | Get task assignment import progress |
+| `GET` | `/api/public/investigation-hub/investigations/{investigationId}/imported-evidence-task-assignment` | Get imported evidence task assignment |
 
 ### Task Execution Logs
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/public/investigation-hub/{investigationId}/task-execution-logs` | Get task execution logs |
-| `POST` | `/api/public/investigation-hub/{investigationId}/task-execution-logs/filter` | Filter task execution logs |
+| `GET` | `/api/public/investigation-hub/investigations/{investigationId}/task-execution-logs` | Get task execution logs |
+| `POST` | `/api/public/investigation-hub/investigations/{investigationId}/task-execution-logs/filter` | Filter task execution logs |
 
 ### Data Usage
 

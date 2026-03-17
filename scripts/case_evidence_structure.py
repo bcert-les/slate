@@ -66,6 +66,14 @@ def get_case_by_investigation_id(air_host, api_token, investigation_id, org_id=N
     return None
 
 
+def _format_size(size):
+    if size > 1024 * 1024:
+        return f"{size / (1024*1024):.1f} MB"
+    elif size > 1024:
+        return f"{size / 1024:.1f} KB"
+    return f"{size} bytes"
+
+
 def get_case_endpoints(air_host, api_token, case_id, org_id):
     params = {
         "filter[organizationIds]": org_id,
@@ -177,13 +185,6 @@ def display_results(case, tasks, endpoints, hub_results):
                 print(f"      Investigation Status: {inv_status}")
                 if inv_disk:
                     print(f"      Investigation Disk Usage: {inv_disk / (1024*1024):.1f} MB")
-
-            def _format_size(size):
-                if size > 1024 * 1024:
-                    return f"{size / (1024*1024):.1f} MB"
-                elif size > 1024:
-                    return f"{size / 1024:.1f} KB"
-                return f"{size} bytes"
 
             if case_ppc_entries:
                 print(f"      Evidence Files:")

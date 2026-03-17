@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-03-16
+
+### Fixed
+
+- Investigation Hub API paths in `docs/API_README.md` -- added missing `investigations/` segment to all 73 endpoint paths so the reference matches the working API
+- `case_extract_findings.py` -- rewrote to probe correct Investigation Hub endpoints instead of non-existent paths; now auto-discovers the investigation ID from the case
+- `case_evidence_structure.py` -- moved `_format_size()` from inside a loop to module level
+- README: restored missing `.env` filename in project structure tree, restored the env variable example block that was accidentally removed, fixed indentation
+
+### Added
+
+- README: documented `wrkfl_process_analysis.py` (interactive process analysis workflow)
+- README: added Troubleshooting section covering common errors (`organizationId required`, `urllib3` warning, missing env vars, Investigation Hub availability, download speed)
+- README: added `CHANGELOG.md`, `HARDENING.md`, and `wrkfl_process_analysis.py` to project structure tree
+- Consistent error handling (`try/except` with traceback) in `enumerate_orgs.py` and `enumerate_cases.py`
+
+### Changed
+
+- `case_extract_findings.py` now looks up the investigation ID from the case and probes both case endpoints and Investigation Hub endpoints with correct paths
+
 ## [0.2.0] - 2026-03-16
 
 ### Fixed

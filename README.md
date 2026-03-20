@@ -1,6 +1,6 @@
 # Binalyze AIR API Toolkit
 
-**Version:** 0.3.1
+**Version:** 0.4.0
 
 Python scripts for interacting with the Binalyze AIR API -- enumerate organizations, cases, and download forensic evidence data.
 
@@ -22,9 +22,11 @@ slate/
     case_evidence_structure.py
     case_download_evidence.py
     case_extract_findings.py
+    case_acquire.py
   output/                     # Data outputs -- CSV, JSON, SQLite (gitignored)
   docs/                       # Documentation
     API_README.md             # API endpoint reference
+    DATA_STRUCTURE.md         # Entity hierarchy and data flow
     HARDENING.md              # Production hardening notes
     SCALABILITY.md            # 10k endpoint scale analysis
 ```
@@ -130,6 +132,34 @@ python3 scripts/case_extract_findings.py <org_id> <case_id>
 
 Output saved to `output/findings_org<org_id>_case<case_id>.json`.
 
+### case_acquire.py
+
+Acquires evidence from an endpoint via the API -- the full workflow that replicates clicking through the console: find the endpoint, pick an acquisition profile, create (or reuse) a case, and assign the acquisition task.
+
+```bash
+# Interactive: prompts you to select a profile
+python3 scripts/case_acquire.py <org_id> WORKSTATION-01
+
+# Fully automated: specify profile and poll for completion
+python3 scripts/case_acquire.py <org_id> WORKSTATION-01 --profile-name "Full" --poll
+
+# Attach to an existing case instead of creating a new one
+python3 scripts/case_acquire.py <org_id> WORKSTATION-01 --case-id C-2026-00001
+
+# Preview the API call without sending it
+python3 scripts/case_acquire.py <org_id> WORKSTATION-01 --profile-id abc123 --dry-run
+```
+
+Options:
+
+- `--case-id ID` -- use an existing case (skip creation)
+- `--case-name NAME` -- create a new case with a custom name
+- `--profile-id ID` -- acquisition profile ID (skip interactive selection)
+- `--profile-name NAME` -- find profile by name
+- `--poll` -- poll for task completion after assignment
+- `--poll-interval SECS` -- seconds between status checks (default: 10)
+- `--dry-run` -- show what would be sent without calling assign-task
+
 ### wrkfl_process_analysis.py
 
 Interactive workflow that walks through a full process analysis: select a case, download all Windows process data to SQLite, then print frequency analysis (top 10 and bottom 10 processes). The bottom 10 are the hunting gold -- rare processes that may indicate compromise.
@@ -172,13 +202,17 @@ See [docs/API_README.md](docs/API_README.md) for the full list of Binalyze AIR A
 Key endpoints used:
 
 
-| Endpoint                                                                                    | Description            |
-| ------------------------------------------------------------------------------------------- | ---------------------- |
-| `GET /api/public/organizations`                                                             | List organizations     |
-| `GET /api/public/cases`                                                                     | List/filter cases      |
-| `GET /api/public/cases/{id}/tasks`                                                          | Get case tasks         |
-| `POST /api/public/investigation-hub/investigations/{id}/sections`                           | List evidence sections |
-| `POST /api/public/investigation-hub/investigations/{id}/platform/{p}/evidence-category/{c}` | Download evidence data |
+| Endpoint                                                                                    | Description             |
+| ------------------------------------------------------------------------------------------- | ----------------------- |
+| `GET /api/public/organizations`                                                             | List organizations      |
+| `GET /api/public/cases`                                                                     | List/filter cases       |
+| `POST /api/public/cases`                                                                    | Create a new case       |
+| `GET /api/public/cases/{id}/tasks`                                                          | Get case tasks          |
+| `GET /api/public/assets`                                                                    | List/search assets      |
+| `GET /api/public/acquisitions/profiles`                                                     | List acq. profiles      |
+| `POST /api/public/acquisitions/assign-task`                                                 | Assign acquisition task |
+| `POST /api/public/investigation-hub/investigations/{id}/sections`                           | List evidence sections  |
+| `POST /api/public/investigation-hub/investigations/{id}/platform/{p}/evidence-category/{c}` | Download evidence data  |
 
 ## Troubleshooting
 

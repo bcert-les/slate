@@ -1,6 +1,6 @@
 # Binalyze AIR API Toolkit
 
-**Version:** 0.3.0
+**Version:** 0.3.1
 
 Python scripts for interacting with the Binalyze AIR API -- enumerate organizations, cases, and download forensic evidence data.
 

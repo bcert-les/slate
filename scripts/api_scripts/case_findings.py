@@ -3,12 +3,13 @@ import sys
 import json
 from datetime import datetime
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, PROJECT_ROOT)
+sys.path.insert(0, os.path.join(PROJECT_ROOT, "scripts"))
 
 from lib.api_client import load_config, api_get
 from lib.pagination import paginate_get
 
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUTPUT_DIR = os.path.join(PROJECT_ROOT, "output")
 
 
@@ -146,8 +147,8 @@ def main():
     air_host, api_token = load_config()
 
     if len(sys.argv) < 3:
-        print("Usage: python3 scripts/case_findings.py <org_id> <case_id>", file=sys.stderr)
-        print("\nExample: python3 scripts/case_findings.py 362 C-2026-00001", file=sys.stderr)
+        print("Usage: python3 scripts/api_scripts/case_findings.py <org_id> <case_id>", file=sys.stderr)
+        print("\nExample: python3 scripts/api_scripts/case_findings.py 362 C-2026-00001", file=sys.stderr)
         sys.exit(1)
 
     org_id = sys.argv[1]

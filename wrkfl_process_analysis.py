@@ -13,11 +13,13 @@ import sys
 import sqlite3
 from datetime import datetime, timezone
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_ROOT = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, _ROOT)
+sys.path.insert(0, os.path.join(_ROOT, "scripts"))
 
 from lib.api_client import load_config, api_get
 from lib.pagination import paginate_get
-from scripts.case_download_evidence import (
+from api_scripts.case_download_evidence import (
     get_assets,
     build_endpoint_name_map,
     stream_evidence_data,

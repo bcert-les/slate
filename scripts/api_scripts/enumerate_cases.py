@@ -1,7 +1,9 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, _PROJECT_ROOT)
+sys.path.insert(0, os.path.join(_PROJECT_ROOT, "scripts"))
 
 from lib.api_client import load_config
 from lib.pagination import paginate_get
@@ -11,10 +13,10 @@ def main():
     air_host, api_token = load_config()
 
     if len(sys.argv) < 2:
-        print("Usage: python3 scripts/enumerate_cases.py <org_id> [status]", file=sys.stderr)
+        print("Usage: python3 scripts/api_scripts/enumerate_cases.py <org_id> [status]", file=sys.stderr)
         print("  org_id: Organization ID (required)", file=sys.stderr)
         print("  status: Case status filter (optional, default: 'open')", file=sys.stderr)
-        print("\nGet org IDs with: python3 scripts/enumerate_orgs.py", file=sys.stderr)
+        print("\nGet org IDs with: python3 scripts/api_scripts/enumerate_orgs.py", file=sys.stderr)
         sys.exit(1)
 
     org_id = sys.argv[1]

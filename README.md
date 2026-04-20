@@ -15,14 +15,17 @@ slate/
   lib/                        # Shared library code
     api_client.py             # HTTP helpers, auth, retry w/ backoff
     pagination.py             # Paginated GET helper
-  scripts/                    # Runnable scripts
-    enumerate_orgs.py
-    enumerate_cases.py
-    case_findings.py
-    case_evidence_structure.py
-    case_download_evidence.py
-    case_extract_findings.py
-    case_acquire.py
+  scripts/                    # Runnable automation (not installed as a package)
+    api_scripts/              # Binalyze AIR API CLIs
+      enumerate_orgs.py
+      enumerate_cases.py
+      case_findings.py
+      case_evidence_structure.py
+      case_download_evidence.py
+      case_extract_findings.py
+      case_acquire.py
+    test_data_generators/     # Scripts that build local test inputs
+  test_data/                  # Sample / test inputs (optional)
   output/                     # Data outputs -- CSV, JSON, SQLite (gitignored)
   docs/                       # Documentation
     API_README.md             # API endpoint reference
@@ -54,7 +57,7 @@ All scripts are run from the project root.
 Lists all organizations in your Binalyze tenant.
 
 ```bash
-python3 scripts/enumerate_orgs.py
+python3 scripts/api_scripts/enumerate_orgs.py
 ```
 
 ### enumerate_cases.py
@@ -62,7 +65,7 @@ python3 scripts/enumerate_orgs.py
 Lists cases for an organization, filtered by status.
 
 ```bash
-python3 scripts/enumerate_cases.py <org_id> [status]
+python3 scripts/api_scripts/enumerate_cases.py <org_id> [status]
 ```
 
 - `status` defaults to `open`. Use `closed` for closed cases.
@@ -72,7 +75,7 @@ python3 scripts/enumerate_cases.py <org_id> [status]
 Extracts detailed findings (acquisitions, triage tasks) from a case.
 
 ```bash
-python3 scripts/case_findings.py <org_id> <case_id>
+python3 scripts/api_scripts/case_findings.py <org_id> <case_id>
 ```
 
 Output saved to `output/case_findings_<org_id>_<case_id>.json`.
@@ -82,7 +85,7 @@ Output saved to `output/case_findings_<org_id>_<case_id>.json`.
 Shows the evidence structure for an investigation, including endpoints, tasks, and collected artifacts.
 
 ```bash
-python3 scripts/case_evidence_structure.py <investigation_id> [org_id]
+python3 scripts/api_scripts/case_evidence_structure.py <investigation_id> [org_id]
 ```
 
 Output saved to `output/evidence_structure_<id>.json`.
@@ -93,22 +96,22 @@ Downloads parsed evidence data rows from the Investigation Hub (e.g., processes,
 
 ```bash
 # List available evidence sections
-python3 scripts/case_download_evidence.py <investigation_id> --list
+python3 scripts/api_scripts/case_download_evidence.py <investigation_id> --list
 
 # Download to SQLite (default) -- streams rows, deduplicates, checkpoints
-python3 scripts/case_download_evidence.py <investigation_id> processes
+python3 scripts/api_scripts/case_download_evidence.py <investigation_id> processes
 
 # Resume an interrupted download (automatic -- uses checkpoint)
-python3 scripts/case_download_evidence.py <investigation_id> processes
+python3 scripts/api_scripts/case_download_evidence.py <investigation_id> processes
 
 # Force fresh download, ignoring checkpoint
-python3 scripts/case_download_evidence.py <investigation_id> processes --no-resume
+python3 scripts/api_scripts/case_download_evidence.py <investigation_id> processes --no-resume
 
 # Custom DB path, slower request rate
-python3 scripts/case_download_evidence.py <investigation_id> processes --db output/my_case.db --delay 0.5
+python3 scripts/api_scripts/case_download_evidence.py <investigation_id> processes --db output/my_case.db --delay 0.5
 
 # CSV/JSON output (in-memory, per-endpoint files)
-python3 scripts/case_download_evidence.py <investigation_id> tcp_table --format csv --limit 100
+python3 scripts/api_scripts/case_download_evidence.py <investigation_id> tcp_table --format csv --limit 100
 ```
 
 **SQLite output** goes to `output/evidence.db` (one table per evidence category). **CSV/JSON output** is split per-endpoint into `output/evidence_<category>_<endpoint>.[csv|json]`.
@@ -127,7 +130,7 @@ Production features:
 Probes case and Investigation Hub API endpoints to discover what data is available. Automatically looks up the investigation ID from the case and tests each endpoint, reporting which ones return data.
 
 ```bash
-python3 scripts/case_extract_findings.py <org_id> <case_id>
+python3 scripts/api_scripts/case_extract_findings.py <org_id> <case_id>
 ```
 
 Output saved to `output/findings_org<org_id>_case<case_id>.json`.
@@ -138,16 +141,16 @@ Acquires evidence from an endpoint via the API -- the full workflow that replica
 
 ```bash
 # Interactive: prompts you to select a profile
-python3 scripts/case_acquire.py <org_id> WORKSTATION-01
+python3 scripts/api_scripts/case_acquire.py <org_id> WORKSTATION-01
 
 # Fully automated: specify profile and poll for completion
-python3 scripts/case_acquire.py <org_id> WORKSTATION-01 --profile-name "Full" --poll
+python3 scripts/api_scripts/case_acquire.py <org_id> WORKSTATION-01 --profile-name "Full" --poll
 
 # Attach to an existing case instead of creating a new one
-python3 scripts/case_acquire.py <org_id> WORKSTATION-01 --case-id C-2026-00001
+python3 scripts/api_scripts/case_acquire.py <org_id> WORKSTATION-01 --case-id C-2026-00001
 
 # Preview the API call without sending it
-python3 scripts/case_acquire.py <org_id> WORKSTATION-01 --profile-id abc123 --dry-run
+python3 scripts/api_scripts/case_acquire.py <org_id> WORKSTATION-01 --profile-id abc123 --dry-run
 ```
 
 Options:
@@ -183,16 +186,16 @@ Output goes to `output/evidence.db` with a timestamped table per run.
 
 ```bash
 # 1. Find your organization
-python3 scripts/enumerate_orgs.py
+python3 scripts/api_scripts/enumerate_orgs.py
 
 # 2. List cases in that org
-python3 scripts/enumerate_cases.py 362
+python3 scripts/api_scripts/enumerate_cases.py 362
 
 # 3. Get the investigation ID from a case, then list available evidence
-python3 scripts/case_download_evidence.py <investigation_id> --list
+python3 scripts/api_scripts/case_download_evidence.py <investigation_id> --list
 
 # 4. Download specific evidence
-python3 scripts/case_download_evidence.py <investigation_id> processes
+python3 scripts/api_scripts/case_download_evidence.py <investigation_id> processes
 ```
 
 ## API Reference

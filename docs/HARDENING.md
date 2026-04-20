@@ -19,7 +19,7 @@ All API calls (`api_get`, `api_post`) now automatically retry on transient failu
 
 Fully backwards-compatible -- all existing scripts (`enumerate_orgs.py`, `enumerate_cases.py`, etc.) inherit retry behavior with no code changes.
 
-### scripts/case_download_evidence.py -- Six Production Features
+### scripts/api_scripts/case_download_evidence.py -- Six Production Features
 
 #### 1. Streaming Writes
 
@@ -57,10 +57,10 @@ New `--delay` flag (default: 0.1 seconds) adds a pause between API requests. Thi
 
 ```bash
 # Slower, safer for very large downloads
-python3 scripts/case_download_evidence.py <inv_id> processes --delay 0.5
+python3 scripts/api_scripts/case_download_evidence.py <inv_id> processes --delay 0.5
 
 # No delay (fastest, higher throttle risk)
-python3 scripts/case_download_evidence.py <inv_id> processes --delay 0
+python3 scripts/api_scripts/case_download_evidence.py <inv_id> processes --delay 0
 ```
 
 #### 6. Retry (inherited from api_client.py)

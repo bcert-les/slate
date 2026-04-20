@@ -6,11 +6,12 @@ import sqlite3
 import time
 from datetime import datetime, timezone
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, PROJECT_ROOT)
+sys.path.insert(0, os.path.join(PROJECT_ROOT, "scripts"))
 
 from lib.api_client import load_config, api_get, api_post
 
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUTPUT_DIR = os.path.join(PROJECT_ROOT, "output")
 
 DEFAULT_PAGE_SIZE = 500
@@ -472,7 +473,7 @@ def get_evidence_data_inmemory(air_host, api_token, investigation_id, platform,
 # ---------------------------------------------------------------------------
 
 def print_usage():
-    print("Usage: python3 scripts/case_download_evidence.py <investigation_id> <evidence_category> [options]")
+    print("Usage: python3 scripts/api_scripts/case_download_evidence.py <investigation_id> <evidence_category> [options]")
     print()
     print("Arguments:")
     print("  investigation_id     Investigation UUID (from enumerate_cases.py)")
@@ -488,12 +489,12 @@ def print_usage():
     print("  --no-resume          Ignore checkpoint, download from scratch")
     print()
     print("Examples:")
-    print("  python3 scripts/case_download_evidence.py <inv_id> --list")
-    print("  python3 scripts/case_download_evidence.py <inv_id> processes")
-    print("  python3 scripts/case_download_evidence.py <inv_id> processes --format csv")
-    print("  python3 scripts/case_download_evidence.py <inv_id> tcp_table --format all")
-    print("  python3 scripts/case_download_evidence.py <inv_id> processes --db output/my_case.db")
-    print("  python3 scripts/case_download_evidence.py <inv_id> processes --delay 0.5")
+    print("  python3 scripts/api_scripts/case_download_evidence.py <inv_id> --list")
+    print("  python3 scripts/api_scripts/case_download_evidence.py <inv_id> processes")
+    print("  python3 scripts/api_scripts/case_download_evidence.py <inv_id> processes --format csv")
+    print("  python3 scripts/api_scripts/case_download_evidence.py <inv_id> tcp_table --format all")
+    print("  python3 scripts/api_scripts/case_download_evidence.py <inv_id> processes --db output/my_case.db")
+    print("  python3 scripts/api_scripts/case_download_evidence.py <inv_id> processes --delay 0.5")
 
 
 def parse_args(argv):

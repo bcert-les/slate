@@ -177,7 +177,7 @@ Evidence Row ──► air_endpoint_id ──► Endpoint/Asset
 
 ## Toolkit Data Flow
 
-How the scripts in this repo traverse the hierarchy:
+How the API scripts in this repo traverse the hierarchy:
 
 ```
 enumerate_orgs.py          GET /organizations

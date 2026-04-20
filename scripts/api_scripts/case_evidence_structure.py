@@ -2,12 +2,13 @@ import os
 import sys
 import json
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, PROJECT_ROOT)
+sys.path.insert(0, os.path.join(PROJECT_ROOT, "scripts"))
 
 from lib.api_client import load_config, api_get, api_post
 from lib.pagination import paginate_get
 
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUTPUT_DIR = os.path.join(PROJECT_ROOT, "output")
 
 
@@ -209,8 +210,8 @@ def main():
     air_host, api_token = load_config()
 
     if len(sys.argv) < 2:
-        print("Usage: python3 scripts/case_evidence_structure.py <investigation_id> [org_id]", file=sys.stderr)
-        print("\nExample: python3 scripts/case_evidence_structure.py 557a6170-... 362", file=sys.stderr)
+        print("Usage: python3 scripts/api_scripts/case_evidence_structure.py <investigation_id> [org_id]", file=sys.stderr)
+        print("\nExample: python3 scripts/api_scripts/case_evidence_structure.py 557a6170-... 362", file=sys.stderr)
         sys.exit(1)
 
     investigation_id = sys.argv[1]

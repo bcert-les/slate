@@ -20,7 +20,9 @@ import json
 import time
 from datetime import datetime, timezone
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, _PROJECT_ROOT)
+sys.path.insert(0, os.path.join(_PROJECT_ROOT, "scripts"))
 
 from lib.api_client import load_config, api_get, api_post
 from lib.pagination import paginate_get
@@ -258,7 +260,7 @@ def poll_task(air_host, api_token, task_id, interval=DEFAULT_POLL_INTERVAL):
 # ---------------------------------------------------------------------------
 
 def print_usage():
-    print("Usage: python3 scripts/case_acquire.py <org_id> <endpoint_name_or_id> [options]")
+    print("Usage: python3 scripts/api_scripts/case_acquire.py <org_id> <endpoint_name_or_id> [options]")
     print()
     print("Arguments:")
     print("  org_id                Organization ID")
@@ -274,9 +276,9 @@ def print_usage():
     print("  --dry-run             Show what would be sent without calling assign-task")
     print()
     print("Examples:")
-    print("  python3 scripts/case_acquire.py 362 WORKSTATION-01")
-    print("  python3 scripts/case_acquire.py 362 WORKSTATION-01 --profile-name 'Full' --poll")
-    print("  python3 scripts/case_acquire.py 362 WORKSTATION-01 --case-id C-2026-00001 --dry-run")
+    print("  python3 scripts/api_scripts/case_acquire.py 362 WORKSTATION-01")
+    print("  python3 scripts/api_scripts/case_acquire.py 362 WORKSTATION-01 --profile-name 'Full' --poll")
+    print("  python3 scripts/api_scripts/case_acquire.py 362 WORKSTATION-01 --case-id C-2026-00001 --dry-run")
 
 
 def parse_args(argv):

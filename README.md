@@ -82,7 +82,7 @@ python3 scripts/api_scripts/enumerate_assets.py <org_id>
 python3 scripts/api_scripts/enumerate_assets.py <org_id> --json output/my_assets.json --csv output/my_assets.csv --quiet
 ```
 
-Defaults: `output/assets_org_<org_id>.json` and `output/assets_org_<org_id>.csv`.
+Defaults: `output/assets_org_<sanitized_org_name>_<org_id>.json` and matching `.csv` (name from `GET /organizations/{id}`). If there is no usable display name, the stem is `assets_org_<org_id>` only.
 
 ### case_findings.py
 

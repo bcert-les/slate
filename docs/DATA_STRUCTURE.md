@@ -186,6 +186,9 @@ enumerate_orgs.py          GET /organizations
 enumerate_cases.py         GET /cases?filter[organizationIds]=N&filter[status]=open
         │
         ▼
+enumerate_assets.py        GET /assets?filter[organizationIds]=N  → JSON + CSV (org inventory)
+        │
+        ▼
 case_findings.py           GET /cases/{id}  +  GET /cases/{id}/tasks
 case_evidence_structure.py GET /cases/{id}/endpoints  +  Investigation Hub probes
 case_extract_findings.py   Probes case + Investigation Hub endpoints

@@ -1,6 +1,6 @@
 # Binalyze AIR API Toolkit
 
-**Version:** 0.4.0
+**Version:** 0.4.1
 
 Python scripts for interacting with the Binalyze AIR API -- enumerate organizations, cases, and download forensic evidence data.
 
@@ -19,6 +19,7 @@ slate/
     api_scripts/              # Binalyze AIR API CLIs
       enumerate_orgs.py
       enumerate_cases.py
+      enumerate_assets.py
       case_findings.py
       case_evidence_structure.py
       case_download_evidence.py
@@ -69,6 +70,19 @@ python3 scripts/api_scripts/enumerate_cases.py <org_id> [status]
 ```
 
 - `status` defaults to `open`. Use `closed` for closed cases.
+
+### enumerate_assets.py
+
+Lists every asset (endpoint) in an organization via `GET /api/public/assets`, paginated. Writes full API objects to JSON and a CSV whose columns are the union of all top-level keys (nested dicts/lists are JSON-encoded in cells).
+
+```bash
+python3 scripts/api_scripts/enumerate_assets.py <org_id>
+
+# custom output paths, quieter pagination logs
+python3 scripts/api_scripts/enumerate_assets.py <org_id> --json output/my_assets.json --csv output/my_assets.csv --quiet
+```
+
+Defaults: `output/assets_org_<org_id>.json` and `output/assets_org_<org_id>.csv`.
 
 ### case_findings.py
 
@@ -190,6 +204,9 @@ python3 scripts/api_scripts/enumerate_orgs.py
 
 # 2. List cases in that org
 python3 scripts/api_scripts/enumerate_cases.py 362
+
+# Optional: export all assets (endpoints) in the org to JSON + CSV
+python3 scripts/api_scripts/enumerate_assets.py 362
 
 # 3. Get the investigation ID from a case, then list available evidence
 python3 scripts/api_scripts/case_download_evidence.py <investigation_id> --list

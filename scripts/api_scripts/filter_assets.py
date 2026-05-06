@@ -1,9 +1,16 @@
 """
-List all assets (endpoints) for an organization via GET /api/public/assets.
+List assets via POST /api/public/assets/filter (server-side filter body).
 
-Writes JSON (full API objects) and CSV (union of top-level keys; nested
-values as JSON strings in cells). To shrink columns or share a subset, run
-scripts/test_data_generators/filter_enumerate_assets_output.py on the JSON.
+Uses the same paginated result shape as GET /api/public/assets when the API
+supports page/pageSize query parameters on this route. Writes JSON and CSV
+in the same layout as enumerate_assets.py.
+
+Default POST body (when --body-file is omitted):
+
+    {"filter": {"organizationIds": ["<org_id>"]}}
+
+Override the body with --body-file (full JSON object). For custom filters,
+keep organizationIds inside filter if your tenant expects that shape.
 """
 import argparse
 import csv
@@ -17,7 +24,7 @@ sys.path.insert(0, _PROJECT_ROOT)
 sys.path.insert(0, os.path.join(_PROJECT_ROOT, "scripts"))
 
 from lib.api_client import api_get, load_config
-from lib.pagination import paginate_get
+from lib.pagination import paginate_post
 
 
 def _safe_org_slug(org_id: str) -> str:
@@ -28,7 +35,6 @@ def _safe_org_slug(org_id: str) -> str:
 
 
 def _safe_org_name_for_file(name: str, max_len: int = 50) -> str:
-    """Sanitize organization display name for use in filenames."""
     if not name or not str(name).strip():
         return ""
     s = str(name).strip()
@@ -41,7 +47,6 @@ def _safe_org_name_for_file(name: str, max_len: int = 50) -> str:
 
 
 def fetch_organization(air_host, api_token, org_id):
-    """GET /organizations/{id}; returns dict with at least name and _id."""
     resp = api_get(air_host, api_token, f"/api/public/organizations/{org_id}")
     if not resp.ok:
         raise RuntimeError(
@@ -98,22 +103,38 @@ def write_csv(path, assets):
             writer.writerow({k: _cell_csv(row.get(k)) for k in fieldnames})
 
 
+def default_filter_body(org_id: str) -> dict:
+    return {"filter": {"organizationIds": [org_id]}}
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description="Enumerate all assets for an organization (JSON + CSV).",
+        description="Filter assets via POST /api/public/assets/filter (JSON + CSV).",
     )
-    parser.add_argument("org_id", help="Organization ID (from enumerate_orgs.py)")
+    parser.add_argument("org_id", help="Organization ID (used in default body and output names)")
+    parser.add_argument(
+        "--body-file",
+        metavar="PATH",
+        help="JSON file to send as the POST body (replaces default filter body)",
+    )
+    parser.add_argument(
+        "--page-size",
+        type=int,
+        default=100,
+        metavar="N",
+        help="Page size for pagination query (default: 100)",
+    )
     parser.add_argument(
         "--json",
         dest="json_path",
         metavar="PATH",
-        help="Output JSON path (default: output/assets_org_<sanitized_name>_<org_id>.json)",
+        help="Output JSON path (default: output/assets_filter_org_<name>_<org_id>.json)",
     )
     parser.add_argument(
         "--csv",
         dest="csv_path",
         metavar="PATH",
-        help="Output CSV path (default: output/assets_org_<sanitized_name>_<org_id>.csv)",
+        help="Output CSV path (default: output/assets_filter_org_<name>_<org_id>.csv)",
     )
     parser.add_argument(
         "--quiet",
@@ -127,6 +148,15 @@ def main():
         print("org_id must be non-empty", file=sys.stderr)
         sys.exit(1)
 
+    if args.body_file:
+        with open(args.body_file, encoding="utf-8") as f:
+            body = json.load(f)
+        if not isinstance(body, dict):
+            print("--body-file must contain a JSON object", file=sys.stderr)
+            sys.exit(1)
+    else:
+        body = default_filter_body(org_id)
+
     air_host, api_token = load_config()
     verbose = not args.quiet
 
@@ -136,9 +166,9 @@ def main():
         name_slug = _safe_org_name_for_file(org_name)
         id_slug = _safe_org_slug(org_id)
         if name_slug:
-            file_stem = f"assets_org_{name_slug}_{id_slug}"
+            file_stem = f"assets_filter_org_{name_slug}_{id_slug}"
         else:
-            file_stem = f"assets_org_{id_slug}"
+            file_stem = f"assets_filter_org_{id_slug}"
 
         out_dir = os.path.join(_PROJECT_ROOT, "output")
         default_json = os.path.join(out_dir, f"{file_stem}.json")
@@ -149,15 +179,18 @@ def main():
         if verbose:
             label = f"{org_name} ({org_id})" if org_name else org_id
             print(f"Organization: {label}")
-            print(f"Connecting to {air_host}/api/public/assets...")
-            print(f"Fetching assets for organization ID: {org_id}")
+            print(f"POST {air_host}/api/public/assets/filter")
+            if args.body_file:
+                print(f"Body: {args.body_file}")
+            else:
+                print("Body: default filter.organizationIds")
 
-        params = {"filter[organizationIds]": org_id}
-        assets = paginate_get(
+        assets = paginate_post(
             air_host,
             api_token,
-            "/api/public/assets",
-            params=params,
+            "/api/public/assets/filter",
+            body=body,
+            page_size=args.page_size,
             verbose=verbose,
         )
 

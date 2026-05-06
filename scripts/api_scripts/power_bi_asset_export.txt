@@ -1,0 +1,75 @@
+let
+    Host = Text.TrimEnd(Text.Trim("https://training.binalyze.com"), "/"),
+    Token = Text.Trim("api_46b74fa994779d9831e8d60fea1669af"),
+    OrgIdText = Text.Trim("362"),
+
+    // Single request — same route as scripts/api_scripts/export_assets.py
+    Raw = Web.Contents(Host, [
+        RelativePath = "api/public/assets/export",
+        Query = [
+            #"filter[organizationIds]" = OrgIdText
+        ],
+        Headers = [
+            #"Authorization" = "Bearer " & Token,
+            // Prefer CSV; add #"format" = "csv" to Query if your tenant requires it
+            #"Accept" = "text/csv, */*;q=0.1"
+        ]
+    ]),
+
+    T0 = Csv.Document(
+        Raw,
+        [
+            Delimiter = ",",
+            Columns = null,
+            Encoding = 65001,
+            QuoteStyle = QuoteStyle.Csv
+        ]
+    ),
+
+    Promoted = Table.PromoteHeaders(T0, [PromoteAllScalars = true]),
+
+    Deduped =
+        if List.Contains(Table.ColumnNames(Promoted), "Endpoint ID") then
+            Table.Distinct(Promoted, {"Endpoint ID"})
+        else
+            Promoted,
+
+    // Export CSV headers → same names as your old JSON-based query
+    Renamed = Table.RenameColumns(
+        Deduped,
+        {
+            {"Name", "name"},
+            {"Managed Status", "onlineStatus"},
+            {"Network Interfaces", "netInterfaces"},
+            {"Last Seen", "lastSeen"},
+            {"RegisteredAt", "createdAt"}
+        },
+        MissingField.Ignore
+    ),
+
+    T1 = Table.SelectColumns(
+        Renamed,
+        {"name", "onlineStatus", "netInterfaces", "lastSeen", "createdAt"},
+        MissingField.UseNull
+    ),
+
+    T2 =
+        if List.Contains(Table.ColumnNames(T1), "netInterfaces") then
+            Table.TransformColumns(
+                T1,
+                {{
+                    "netInterfaces",
+                    each
+                        if _ = null then
+                            null
+                        else if Value.Type(_) = type text then
+                            _
+                        else
+                            try Text.FromBinary(Json.FromValue(_)) otherwise Text.From(_),
+                    type nullable text
+                }}
+            )
+        else
+            T1
+in
+    T2

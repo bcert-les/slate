@@ -86,11 +86,14 @@ def _request_with_retry(method, url, retries=MAX_RETRIES, **kwargs):
 
 
 def api_get(air_host, api_token, path, params=None, timeout=DEFAULT_TIMEOUT,
-            retries=MAX_RETRIES):
+            retries=MAX_RETRIES, extra_headers=None):
     url = f"{air_host}{path}"
+    headers = dict(_headers(api_token))
+    if extra_headers:
+        headers.update(extra_headers)
     return _request_with_retry(
         requests.get, url,
-        headers=_headers(api_token), params=params, timeout=timeout,
+        headers=headers, params=params, timeout=timeout,
         retries=retries,
     )
 

@@ -1,6 +1,6 @@
 # Binalyze AIR API Toolkit
 
-**Version:** 0.4.1
+**Version:** 0.4.2
 
 Python scripts for interacting with the Binalyze AIR API -- enumerate organizations, cases, and download forensic evidence data.
 
@@ -25,7 +25,8 @@ slate/
       case_download_evidence.py
       case_extract_findings.py
       case_acquire.py
-    test_data_generators/     # Scripts that build local test inputs
+    test_data_generators/     # Local data helpers (e.g. filter asset exports)
+      filter_enumerate_assets_output.py
   test_data/                  # Sample / test inputs (optional)
   output/                     # Data outputs -- CSV, JSON, SQLite (gitignored)
   docs/                       # Documentation
@@ -83,6 +84,17 @@ python3 scripts/api_scripts/enumerate_assets.py <org_id> --json output/my_assets
 ```
 
 Defaults: `output/assets_org_<sanitized_org_name>_<org_id>.json` and matching `.csv` (name from `GET /organizations/{id}`). If there is no usable display name, the stem is `assets_org_<org_id>` only.
+
+### filter_enumerate_assets_output.py
+
+Post-processes JSON from `enumerate_assets.py`: keep only chosen top-level fields per asset (`--include`), or drop fields (`--exclude`), or both. Writes the same JSON envelope (`organizationId`, `count`, `assets`) plus optional CSV.
+
+```bash
+python3 scripts/test_data_generators/filter_enumerate_assets_output.py output/assets_org_MyOrg_362.json \
+  --include _id,name,ipAddress,platform,os \
+  --json-out output/assets_org_MyOrg_362.core.json \
+  --csv-out output/assets_org_MyOrg_362.core.csv
+```
 
 ### case_findings.py
 

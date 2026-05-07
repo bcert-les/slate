@@ -16,13 +16,84 @@ import json
 import os
 import sys
 import time
+import warnings
 
-_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, _PROJECT_ROOT)
+import requests
+from dotenv import load_dotenv
 
-from lib.api_client import api_get, load_config
+warnings.filterwarnings('ignore', message='urllib3 v2 only supports OpenSSL 1.1.1+')
+
+_DEFAULT_TIMEOUT = 30
+_MAX_RETRIES = 5
+_INITIAL_BACKOFF = 1.0
+_BACKOFF_FACTOR = 2.0
+_RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 
 TERMINAL_STATUSES = {"completed", "failed", "cancelled", "error"}
+
+
+def load_config():
+    load_dotenv()
+    air_host = os.getenv("BINALYZE_AIR_HOST") or os.getenv("AIR_HOST")
+    api_token = os.getenv("BINALYZE_API_TOKEN") or os.getenv("AIR_API_TOKEN")
+    if not air_host or not api_token:
+        print("Set BINALYZE_AIR_HOST and BINALYZE_API_TOKEN in .env", file=sys.stderr)
+        sys.exit(1)
+    return air_host.rstrip("/"), api_token
+
+
+def _headers(api_token):
+    return {
+        "Authorization": f"Bearer {api_token}",
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+    }
+
+
+def _request_with_retry(method, url, retries=_MAX_RETRIES, **kwargs):
+    backoff = _INITIAL_BACKOFF
+    last_exc = None
+    for attempt in range(retries + 1):
+        try:
+            resp = method(url, **kwargs)
+            if resp.status_code not in _RETRYABLE_STATUS_CODES:
+                return resp
+            if attempt == retries:
+                return resp
+            retry_after = resp.headers.get("Retry-After")
+            if retry_after:
+                try:
+                    wait = float(retry_after)
+                except ValueError:
+                    wait = backoff
+            else:
+                wait = backoff
+            print(f"\n  HTTP {resp.status_code}, retrying in {wait:.1f}s "
+                  f"(attempt {attempt + 1}/{retries})...", file=sys.stderr, flush=True)
+            time.sleep(wait)
+            backoff *= _BACKOFF_FACTOR
+        except (requests.ConnectionError, requests.Timeout) as exc:
+            last_exc = exc
+            if attempt == retries:
+                raise
+            print(f"\n  Connection error, retrying in {backoff:.1f}s "
+                  f"(attempt {attempt + 1}/{retries})...", file=sys.stderr, flush=True)
+            time.sleep(backoff)
+            backoff *= _BACKOFF_FACTOR
+    raise last_exc
+
+
+def api_get(air_host, api_token, path, params=None, timeout=_DEFAULT_TIMEOUT,
+            retries=_MAX_RETRIES, extra_headers=None):
+    url = f"{air_host}{path}"
+    headers = dict(_headers(api_token))
+    if extra_headers:
+        headers.update(extra_headers)
+    return _request_with_retry(
+        requests.get, url,
+        headers=headers, params=params, timeout=timeout,
+        retries=retries,
+    )
 
 
 def main():

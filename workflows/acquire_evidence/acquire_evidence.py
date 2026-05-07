@@ -14,19 +14,27 @@ SDK patterns and may need adjustment. The script prints the full request and
 response bodies to aid debugging. Use --dry-run to preview without sending.
 """
 
+import json
 import os
 import sys
-import json
 import time
+import warnings
 from datetime import datetime, timezone
+from typing import Any, Dict, List
+
+import requests
+from dotenv import load_dotenv
+
+warnings.filterwarnings('ignore', message='urllib3 v2 only supports OpenSSL 1.1.1+')
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, _PROJECT_ROOT)
 
-from lib.api_client import load_config, api_get, api_post
-from lib.binalyze_acquisitions import acquisition_profile_id_for_acquire
-from lib.pagination import paginate_get
-
+_DEFAULT_TIMEOUT = 30
+_MAX_RETRIES = 5
+_INITIAL_BACKOFF = 1.0
+_BACKOFF_FACTOR = 2.0
+_RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
+_MAX_ITERATIONS = 1000
 
 DEFAULT_POLL_INTERVAL = 10
 TERMINAL_STATUSES = {"completed", "failed", "cancelled", "error"}
@@ -34,6 +42,199 @@ CASE_VISIBILITY_VALUES = frozenset(
     ("public-to-organization", "private-to-users")
 )
 
+# Built-in AIR acquisition profile slugs (sent as-is rather than using _id).
+_PRESET_PROFILES = frozenset((
+    "browsing-history",
+    "compromise-assessment",
+    "event-logs",
+    "full",
+    "memory-ram-pagefile",
+    "quick",
+))
+
+
+def load_config():
+    load_dotenv()
+    air_host = os.getenv("BINALYZE_AIR_HOST") or os.getenv("AIR_HOST")
+    api_token = os.getenv("BINALYZE_API_TOKEN") or os.getenv("AIR_API_TOKEN")
+    if not air_host or not api_token:
+        print("Set BINALYZE_AIR_HOST and BINALYZE_API_TOKEN in .env", file=sys.stderr)
+        sys.exit(1)
+    return air_host.rstrip("/"), api_token
+
+
+def _headers(api_token):
+    return {
+        "Authorization": f"Bearer {api_token}",
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+    }
+
+
+def _request_with_retry(method, url, retries=_MAX_RETRIES, **kwargs):
+    backoff = _INITIAL_BACKOFF
+    last_exc = None
+    for attempt in range(retries + 1):
+        try:
+            resp = method(url, **kwargs)
+            if resp.status_code not in _RETRYABLE_STATUS_CODES:
+                return resp
+            if attempt == retries:
+                return resp
+            retry_after = resp.headers.get("Retry-After")
+            if retry_after:
+                try:
+                    wait = float(retry_after)
+                except ValueError:
+                    wait = backoff
+            else:
+                wait = backoff
+            print(f"\n  HTTP {resp.status_code}, retrying in {wait:.1f}s "
+                  f"(attempt {attempt + 1}/{retries})...", file=sys.stderr, flush=True)
+            time.sleep(wait)
+            backoff *= _BACKOFF_FACTOR
+        except (requests.ConnectionError, requests.Timeout) as exc:
+            last_exc = exc
+            if attempt == retries:
+                raise
+            print(f"\n  Connection error, retrying in {backoff:.1f}s "
+                  f"(attempt {attempt + 1}/{retries})...", file=sys.stderr, flush=True)
+            time.sleep(backoff)
+            backoff *= _BACKOFF_FACTOR
+    raise last_exc
+
+
+def api_get(air_host, api_token, path, params=None, timeout=_DEFAULT_TIMEOUT,
+            retries=_MAX_RETRIES, extra_headers=None):
+    url = f"{air_host}{path}"
+    headers = dict(_headers(api_token))
+    if extra_headers:
+        headers.update(extra_headers)
+    return _request_with_retry(
+        requests.get, url,
+        headers=headers, params=params, timeout=timeout,
+        retries=retries,
+    )
+
+
+def api_post(air_host, api_token, path, body=None, params=None,
+             timeout=_DEFAULT_TIMEOUT, retries=_MAX_RETRIES):
+    url = f"{air_host}{path}"
+    return _request_with_retry(
+        requests.post, url,
+        headers=_headers(api_token), json=body or {}, params=params, timeout=timeout,
+        retries=retries,
+    )
+
+
+def _entity_ids_fingerprint(entities):
+    if not entities:
+        return ()
+    ids = []
+    for row in entities:
+        if isinstance(row, dict):
+            oid = row.get("_id") or row.get("id") or row.get("endpointId")
+            if oid is not None:
+                ids.append(str(oid))
+    return tuple(sorted(ids))
+
+
+def paginate_get(air_host, api_token, path, params=None, page_size=100, verbose=True):
+    base_params = dict(params or {})
+    all_entities = []
+    page = 1
+    seen_pages = set()
+    seen_fingerprints = set()
+
+    while len(seen_pages) < _MAX_ITERATIONS:
+        if page in seen_pages:
+            if verbose:
+                print(f"\nDetected loop at page {page}, stopping.")
+            break
+        seen_pages.add(page)
+
+        request_params = {**base_params, "page": page, "pageSize": page_size}
+        if verbose:
+            print(f"Fetching page {page}...", end=" ", flush=True)
+
+        resp = api_get(air_host, api_token, path, params=request_params)
+        if not resp.ok:
+            raise RuntimeError(f"HTTP {resp.status_code}: {resp.text}")
+
+        if verbose:
+            print("OK")
+
+        data = resp.json()
+
+        result = data.get("result") if isinstance(data, dict) else None
+        if result and isinstance(result, dict) and "entities" in result:
+            entities = result.get("entities") or []
+            if not entities:
+                break
+
+            fp = _entity_ids_fingerprint(entities)
+            if fp and fp in seen_fingerprints:
+                if verbose:
+                    print(
+                        f"\nDetected repeated entity set on page {page} "
+                        f"(API may ignore page cursor); stopping.",
+                        file=sys.stderr,
+                    )
+                break
+            if fp:
+                seen_fingerprints.add(fp)
+
+            all_entities.extend(entities)
+
+            total_pages = result.get("totalPageCount")
+            current_page = result.get("currentPage", page)
+
+            if total_pages and current_page >= total_pages:
+                break
+
+            next_page = result.get("nextPage")
+            if next_page and next_page != page:
+                page = next_page
+                continue
+            elif total_pages and page < total_pages:
+                page += 1
+                continue
+            else:
+                break
+
+        elif isinstance(data, list):
+            all_entities.extend(data)
+            break
+        elif isinstance(data, dict) and "entities" in data:
+            all_entities.extend(data["entities"])
+            break
+        else:
+            raise ValueError(
+                f"Unexpected response format: "
+                f"{list(data.keys()) if isinstance(data, dict) else type(data)}"
+            )
+
+    return all_entities
+
+
+def acquisition_profile_id_for_acquire(profile_from_list: Dict[str, Any], profile_arg: str) -> str:
+    """
+    Return the value to send as `acquisitionProfileId`.
+    For built-ins, AIR expects the preset slug. For custom profiles, use the row _id.
+    """
+    arg_norm = (profile_arg or "").strip().lower()
+    if arg_norm in _PRESET_PROFILES:
+        return arg_norm
+    ref = profile_from_list.get("_id") or profile_from_list.get("id")
+    ref_s = str(ref or "").strip()
+    if not ref_s:
+        raise RuntimeError("Acquisition profile row has no _id/id; cannot derive profile id.")
+    return ref_s
+
+
+# ---------------------------------------------------------------------------
+# Workflow steps
+# ---------------------------------------------------------------------------
 
 def _normalize_case_visibility(case_visibility):
     v = (case_visibility or "public-to-organization").strip()
@@ -45,10 +246,6 @@ def _normalize_case_visibility(case_visibility):
         sys.exit(1)
     return v
 
-
-# ---------------------------------------------------------------------------
-# API helpers
-# ---------------------------------------------------------------------------
 
 def validate_org(air_host, api_token, org_id):
     resp = api_get(air_host, api_token, f"/api/public/organizations/{org_id}")
@@ -64,14 +261,12 @@ def validate_org(air_host, api_token, org_id):
 
 def find_endpoint(air_host, api_token, identifier, org_id):
     """Find an endpoint by name or ID. Tries search first, falls back to direct get."""
-    # Try direct ID lookup first
     resp = api_get(air_host, api_token, f"/api/public/assets/{identifier}")
     if resp.ok:
         asset = resp.json().get("result", resp.json())
         if asset.get("_id"):
             return asset
 
-    # Search by name
     params = {
         "filter[organizationIds]": org_id,
         "search": identifier,
@@ -84,12 +279,10 @@ def find_endpoint(air_host, api_token, identifier, org_id):
         sys.exit(1)
 
     ident_norm = identifier.strip().lower()
-    # Exact name match preferred
     for asset in assets:
         if (asset.get("name") or "").strip().lower() == ident_norm:
             return asset
 
-    # Substring/fuzzy search: disambiguate FQDN vs short hostname (first DNS label).
     def _label(n):
         s = (n or "").strip().lower()
         return s.split(".", 1)[0] if s else ""
@@ -101,7 +294,6 @@ def find_endpoint(air_host, api_token, identifier, org_id):
     if len(assets) == 1:
         return assets[0]
 
-    # Multiple matches -- interactive selection
     print(f"\n  Multiple endpoints match '{identifier}':\n")
     for i, a in enumerate(assets, 1):
         name = a.get("name", "Unknown")
@@ -153,7 +345,6 @@ def resolve_profile(air_host, api_token, org_id, profile_id=None, profile_name=N
         print(f"Error: No profile found with name '{profile_name}'", file=sys.stderr)
         sys.exit(1)
 
-    # Interactive selection
     print(f"\n{'='*70}")
     print("ACQUISITION PROFILES")
     print(f"{'='*70}\n")
@@ -393,11 +584,9 @@ def main():
     endpoint_identifier = args["endpoint"]
 
     try:
-        # Step 1: Validate organization
         print("Validating organization...", flush=True)
         validate_org(air_host, api_token, org_id)
 
-        # Step 2: Find endpoint
         print(f"\nFinding endpoint '{endpoint_identifier}'...", flush=True)
         asset = find_endpoint(air_host, api_token, endpoint_identifier, org_id)
         endpoint_id = asset.get("_id") or asset.get("id")
@@ -407,7 +596,6 @@ def main():
         print(f"  OS:       {asset.get('os', 'N/A')} ({asset.get('platform', 'N/A')})")
         print(f"  IP:       {asset.get('ipAddress', 'N/A')}")
 
-        # Step 3: Resolve acquisition profile
         print(f"\nResolving acquisition profile...", flush=True)
         profile = resolve_profile(
             air_host, api_token, org_id,
@@ -418,7 +606,6 @@ def main():
         profile_id = acquisition_profile_id_for_acquire(profile, profile_name)
         print(f"  Profile: {profile_name} (acquire profileId={profile_id!r})")
 
-        # Step 4: Resolve case
         print(f"\nResolving case...", flush=True)
         case = resolve_case(
             air_host, api_token, org_id,
@@ -431,7 +618,6 @@ def main():
         print(f"  Case: {case.get('name', 'Unknown')} ({case_id})")
         print(f"  Status: {case.get('status', 'N/A')}")
 
-        # Step 5: POST /acquisitions/acquire
         result = assign_acquisition(
             air_host, api_token, case_id, endpoint_name, profile_id, org_id,
             dry_run=args["dry_run"],
@@ -441,7 +627,6 @@ def main():
             print("\nDone (dry run).\n")
             sys.exit(0)
 
-        # Step 6: Poll for completion (optional)
         task_id = None
         r = result.get("result", result)
         if isinstance(r, dict):

@@ -1,7 +1,7 @@
 # api/ — Binalyze AIR single-endpoint examples
 
 Each script in this directory documents and invokes **one** HTTP route. They are
-functional CLI examples; import shared helpers from `lib/` rather than each other.
+functional CLI examples; self-contained — each script only imports from the Python standard library, `requests`, and `python-dotenv`.
 
 Run all scripts from the repository root, e.g.:
 

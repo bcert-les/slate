@@ -35,16 +35,6 @@ updraft/
     acquire_evidence/         # Single-endpoint acquisition workflow
     investigation_hub/        # Evidence structure, download, findings
     process_analysis/         # Interactive Windows process frequency analysis
-  lib/                        # Shared library modules
-    api_client.py             # HTTP helpers, auth, retry with backoff
-    pagination.py             # Paginated GET/POST helpers
-    binalyze_acquisitions.py
-    binalyze_asset_filter.py
-    binalyze_cases.py
-    binalyze_evidence.py      # SQLite streaming writer, Investigation Hub helpers
-    binalyze_isolation.py
-    workflow_policy.py
-    xsoar_adapter.py
   tools/                      # Standalone data-processing utilities
     filter_assets_output.py   # Filter list_assets.py JSON by field
   config/

@@ -8,7 +8,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and thi
 
 ### Changed
 
-- Project renamed from **slate** to **updraft** (in-repo references, XSOAR source ID in `lib/xsoar_adapter.py`).
+- **`lib/` directory removed** — all helpers previously in `lib/` (`api_client.py`, `pagination.py`, `binalyze_*.py`, `workflow_policy.py`, `xsoar_adapter.py`) have been inlined directly into every `api/` and `workflows/` script that used them. Every script is now fully self-contained and depends only on the Python standard library, `requests`, and `python-dotenv`. No shared library directory is needed.
+- Project renamed from **slate** to **updraft** (in-repo references).
 - Repository restructured:
   - `scripts/api_scripts/` replaced by `api/` (strict one-endpoint-per-file CLIs) and `workflows/` (multi-step orchestration).
   - New `api/` scripts: `list_organizations`, `get_organization`, `list_cases`, `get_case`, `post_case`, `list_case_tasks`, `list_assets`, `export_assets`, `post_assets_filter`, `list_asset_tasks`, `list_acquisition_profiles`, `post_acquisitions_acquire`, `get_task`, `post_isolation_task`.

@@ -50,6 +50,6 @@ LAPTOP-03
 
 ## Self-contained design
 
-This script intentionally avoids `lib/` imports so it can be distributed as a
+This script intentionally avoids shared-module imports so it can be distributed as a
 single file to customers. All HTTP handling (retry, pagination, backoff) is
-inlined. See `lib/` for the shared equivalents.
+inlined directly in this file.

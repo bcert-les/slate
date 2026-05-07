@@ -181,7 +181,7 @@ def build_workflow_raw_json(
     run_id: Optional[str] = None,
 ) -> dict:
     return {
-        "source": "slate_workflow_isolation",
+        "source": "updraft_workflow_isolation",
         "run_id": run_id or str(uuid.uuid4()),
         "binalyze_organization_id": binalyze_org_id,
         "binalyze_case_id": binalyze_case_id,

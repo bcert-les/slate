@@ -1,15 +1,15 @@
 """
-Create a Binalyze AIR case (POST /api/public/cases).
+Create a Binalyze AIR case.
 
-Validates the organization, then creates a case with the given name and org ID.
-Optional fields can be merged into the JSON body for tenants that require them
-(e.g. category, or visibility) — use --extra-json with a small JSON file or string.
-Default visibility is public-to-organization; override via --extra-json if needed.
+Endpoint: POST /api/public/cases
+
+Optional --extra-json merges additional fields into the POST body (e.g. category,
+visibility override). Default visibility is public-to-organization.
 
 Run from repository root:
-  python scripts/api_scripts/create_case.py <org_id> --name "Investigation title"
+  python api/post_case.py <org_id> --name "Investigation title"
+  python api/post_case.py <org_id> --name "Investigation title" --dry-run
 """
-
 from __future__ import annotations
 
 import argparse
@@ -18,11 +18,10 @@ import os
 import sys
 from datetime import datetime, timezone
 
-_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, _PROJECT_ROOT)
 
 from lib.api_client import api_post, load_config
-from lib.binalyze_cases import validate_org
 
 
 def _default_case_name() -> str:
@@ -40,12 +39,12 @@ def _parse_extra_json(raw: str | None) -> dict:
     else:
         data = json.loads(raw)
     if not isinstance(data, dict):
-        raise ValueError("--extra-json must be a JSON object or a path to a JSON file containing an object.")
+        raise ValueError("--extra-json must be a JSON object or path to a JSON file containing an object.")
     return data
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(description="Create a Binalyze AIR case.")
+    p = argparse.ArgumentParser(description="Create a Binalyze AIR case (POST /api/public/cases).")
     p.add_argument("org_id", help="Binalyze organization ID")
     p.add_argument(
         "--name",
@@ -59,29 +58,17 @@ def main() -> None:
         default=None,
         help="Merge extra fields into the POST body (JSON string or path to .json object).",
     )
-    p.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Print the request body only; do not POST.",
-    )
-    p.add_argument(
-        "--print-json",
-        action="store_true",
-        help="Print full JSON response to stdout.",
-    )
+    p.add_argument("--dry-run", action="store_true", help="Print request body only; do not POST.")
+    p.add_argument("--print-json", action="store_true", help="Print full JSON response to stdout.")
     args = p.parse_args()
 
     air_host, api_token = load_config()
     org_id = args.org_id.strip()
     case_name = (args.case_name or "").strip() or _default_case_name()
 
-    print(f"Host: {air_host}")
-    print(f"Organization ID: {org_id}")
-    print(f"Case name: {case_name}")
-
-    print("\nValidating organization...", flush=True)
-    org = validate_org(air_host, api_token, org_id)
-    print(f"  {org.get('name', org_id)}")
+    print(f"Host:             {air_host}")
+    print(f"Organization ID:  {org_id}")
+    print(f"Case name:        {case_name}")
 
     body: dict = {
         "name": case_name,
@@ -111,7 +98,7 @@ def main() -> None:
     case = data.get("result", data)
     cid = case.get("_id") or case.get("id") or case.get("caseId")
     print(f"\nCreated case ID: {cid}")
-    print(f"Status: {case.get('status', 'N/A')}")
+    print(f"Status:          {case.get('status', 'N/A')}")
     if args.print_json:
         print(json.dumps(data, indent=2, default=str))
 

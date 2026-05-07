@@ -2,7 +2,7 @@
 
 This document defines functional and non-functional requirements for:
 
-- `scripts/api_scripts/batch_acquisition_csv_flat.py`
+- `workflows/batch_acquisition_csv/batch_acquisition_csv.py`
 
 ## Purpose
 

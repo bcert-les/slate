@@ -1,14 +1,23 @@
+"""
+Probe case and Investigation Hub API endpoints to discover what data is available.
+
+Automatically looks up the investigation ID from a case, tests each endpoint,
+and reports which ones return data. Useful for exploring what a case contains
+before running a more targeted download.
+
+Run from repository root:
+  python workflows/investigation_hub/extract_findings.py <org_id> <case_id>
+"""
+import json
 import os
 import sys
-import json
 
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, PROJECT_ROOT)
-sys.path.insert(0, os.path.join(PROJECT_ROOT, "scripts"))
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, _PROJECT_ROOT)
 
-from lib.api_client import load_config, api_get, api_post
+from lib.api_client import api_get, api_post, load_config
 
-OUTPUT_DIR = os.path.join(PROJECT_ROOT, "output")
+OUTPUT_DIR = os.path.join(_PROJECT_ROOT, "output")
 
 
 def try_get(air_host, api_token, path, params=None):
@@ -26,8 +35,7 @@ def try_post(air_host, api_token, path, body=None):
 
 
 def get_investigation_id(air_host, api_token, case_id):
-    """Fetch a case and return its investigation ID."""
-    data, status = try_get(air_host, api_token, f"/api/public/cases/{case_id}")
+    data, _ = try_get(air_host, api_token, f"/api/public/cases/{case_id}")
     if data is None:
         return None
     result = data.get("result", data)
@@ -35,15 +43,11 @@ def get_investigation_id(air_host, api_token, case_id):
 
 
 def probe_endpoints(air_host, api_token, org_id, case_id, investigation_id):
-    """Probe case and Investigation Hub endpoints, returning those that respond."""
-
     endpoints = [
-        ("GET",  f"/api/public/cases/{case_id}",
-         {"filter[organizationIds]": org_id}),
+        ("GET",  f"/api/public/cases/{case_id}", {"filter[organizationIds]": org_id}),
         ("GET",  f"/api/public/cases/{case_id}/endpoints",
          {"filter[organizationIds]": org_id, "page": 1, "pageSize": 100}),
-        ("GET",  f"/api/public/cases/{case_id}/tasks",
-         {"page": 1, "pageSize": 100}),
+        ("GET",  f"/api/public/cases/{case_id}/tasks", {"page": 1, "pageSize": 100}),
     ]
 
     if investigation_id:
@@ -79,9 +83,6 @@ def probe_endpoints(air_host, api_token, org_id, case_id, investigation_id):
 def display_findings(endpoints_data):
     if not endpoints_data:
         print("\nNo successful endpoints found.")
-        print("\nPossible reasons:")
-        print("  1. Your API token may not have permissions")
-        print("  2. The case may not have completed acquisition yet")
         return
 
     print(f"\n{'='*80}")
@@ -126,22 +127,12 @@ def display_findings(endpoints_data):
     print()
 
 
-def save_to_file(endpoints_data, org_id, case_id):
-    if not endpoints_data:
-        return
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    filename = os.path.join(OUTPUT_DIR, f"findings_org{org_id}_case{case_id}.json")
-    with open(filename, 'w', encoding='utf-8') as f:
-        json.dump(endpoints_data, f, indent=2, ensure_ascii=False)
-    print(f"Data saved to: {filename}")
-
-
 def main():
     air_host, api_token = load_config()
 
     if len(sys.argv) < 3:
-        print("Usage: python3 scripts/api_scripts/case_extract_findings.py <org_id> <case_id>", file=sys.stderr)
-        print("\nExample: python3 scripts/api_scripts/case_extract_findings.py 362 C-2026-00001", file=sys.stderr)
+        print("Usage: python workflows/investigation_hub/extract_findings.py <org_id> <case_id>",
+              file=sys.stderr)
         sys.exit(1)
 
     org_id = sys.argv[1]
@@ -153,12 +144,17 @@ def main():
         if investigation_id:
             print(f"  Investigation ID: {investigation_id}\n")
         else:
-            print("  No investigation ID found -- skipping Investigation Hub endpoints.\n")
+            print("  No investigation ID — skipping Investigation Hub endpoints.\n")
 
         endpoints_data = probe_endpoints(air_host, api_token, org_id, case_id, investigation_id)
         display_findings(endpoints_data)
+
         if endpoints_data:
-            save_to_file(endpoints_data, org_id, case_id)
+            os.makedirs(OUTPUT_DIR, exist_ok=True)
+            out_file = os.path.join(OUTPUT_DIR, f"findings_org{org_id}_case{case_id}.json")
+            with open(out_file, "w", encoding="utf-8") as f:
+                json.dump(endpoints_data, f, indent=2, ensure_ascii=False)
+            print(f"Data saved to: {out_file}")
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         import traceback

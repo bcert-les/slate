@@ -2,7 +2,7 @@
 Interactive workflow: validate endpoints, create Binalyze case, open XSOAR incident,
 assign isolation tasks, poll status, prompt operator before/after server-class hosts.
 
-Run from repository root. See docs/WORKFLOW_ISOLATION.md.
+Run from repository root. See workflows/isolation_xsoar/README.md.
 """
 
 from __future__ import annotations

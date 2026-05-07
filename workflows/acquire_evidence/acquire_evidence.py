@@ -22,7 +22,6 @@ from datetime import datetime, timezone
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, _PROJECT_ROOT)
-sys.path.insert(0, os.path.join(_PROJECT_ROOT, "scripts"))
 
 from lib.api_client import load_config, api_get, api_post
 from lib.binalyze_acquisitions import acquisition_profile_id_for_acquire
@@ -300,7 +299,7 @@ def poll_task(air_host, api_token, task_id, interval=DEFAULT_POLL_INTERVAL):
 # ---------------------------------------------------------------------------
 
 def print_usage():
-    print("Usage: python3 scripts/api_scripts/case_acquire.py <org_id> <endpoint_name_or_id> [options]")
+    print("Usage: python workflows/acquire_evidence/acquire_evidence.py <org_id> <endpoint_name_or_id> [options]")
     print()
     print("Arguments:")
     print("  org_id                Organization ID")
@@ -317,9 +316,9 @@ def print_usage():
     print("  --case-visibility V   public-to-organization | private-to-users (default: public)")
     print()
     print("Examples:")
-    print("  python3 scripts/api_scripts/case_acquire.py 362 WORKSTATION-01")
-    print("  python3 scripts/api_scripts/case_acquire.py 362 WORKSTATION-01 --profile-name 'Full' --poll")
-    print("  python3 scripts/api_scripts/case_acquire.py 362 WORKSTATION-01 --case-id C-2026-00001 --dry-run")
+    print("  python workflows/acquire_evidence/acquire_evidence.py 362 WORKSTATION-01")
+    print("  python workflows/acquire_evidence/acquire_evidence.py 362 WORKSTATION-01 --profile-name 'Full' --poll")
+    print("  python workflows/acquire_evidence/acquire_evidence.py 362 WORKSTATION-01 --case-id C-2026-00001 --dry-run")
 
 
 def parse_args(argv):

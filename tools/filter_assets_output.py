@@ -1,9 +1,15 @@
 """
-Filter top-level fields in JSON produced by scripts/api_scripts/enumerate_assets.py.
+Filter top-level fields in JSON produced by api/list_assets.py.
 
 Reads the standard export shape: { "organizationId", "count", "assets": [...] }.
 Writes the same shape with each asset reduced to selected keys, plus optional CSV
 aligned to --include column order (or sorted union if only --exclude is used).
+
+Run from repository root:
+  python tools/filter_assets_output.py output/assets_org_362.json \
+    --include _id,name,ipAddress,platform,os \
+    --json-out output/assets_core.json \
+    --csv-out output/assets_core.csv
 """
 from __future__ import annotations
 

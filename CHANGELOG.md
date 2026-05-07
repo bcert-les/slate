@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - 2026-05-07
+
+### Changed
+
+- Project renamed from **slate** to **updraft** (in-repo references, XSOAR source ID in `lib/xsoar_adapter.py`).
+- Repository restructured:
+  - `scripts/api_scripts/` replaced by `api/` (strict one-endpoint-per-file CLIs) and `workflows/` (multi-step orchestration).
+  - New `api/` scripts: `list_organizations`, `get_organization`, `list_cases`, `get_case`, `post_case`, `list_case_tasks`, `list_assets`, `export_assets`, `post_assets_filter`, `list_asset_tasks`, `list_acquisition_profiles`, `post_acquisitions_acquire`, `get_task`, `post_isolation_task`.
+  - New `workflows/`: `batch_acquisition_csv/`, `isolation_xsoar/`, `acquire_evidence/`, `investigation_hub/`, `process_analysis/`.
+  - `scripts/test_data_generators/filter_enumerate_assets_output.py` → `tools/filter_assets_output.py`.
+  - `wrkfl_process_analysis.py` → `workflows/process_analysis/process_analysis.py`.
+  - `deliverables/` removed.
+- New `lib/binalyze_evidence.py` consolidates shared Investigation Hub evidence-download utilities (`SqliteEvidenceWriter`, `stream_evidence_data`, `get_evidence_data_inmemory`, etc.).
+
 ## [0.4.2] - 2026-04-21
 
 ### Added

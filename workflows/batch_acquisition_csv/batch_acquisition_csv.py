@@ -10,7 +10,7 @@ Batch CSV acquisition for Binalyze AIR (single self-contained script; no lib/ im
 - Prints isolation-related asset fields and latest isolation-like task per asset at the end.
 
 Run from repository root:
-  python scripts/api_scripts/batch_acquisition_csv_flat.py \\
+  python workflows/batch_acquisition_csv/batch_acquisition_csv.py \
     --csv hosts.csv --profile-name "Quick triage" --case-name "Investigation X"
 
 Requires .env: BINALYZE_AIR_HOST, BINALYZE_API_TOKEN (or AIR_* aliases).

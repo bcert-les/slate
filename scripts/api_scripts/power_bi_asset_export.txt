@@ -1,6 +1,6 @@
 let
-    Host = Text.TrimEnd(Text.Trim("https://training.binalyze.com"), "/"),
-    Token = Text.Trim("api_46b74fa994779d9831e8d60fea1669af"),
+    Host = Text.TrimEnd(Text.Trim("[CONSOL URL]"), "/"),
+    Token = Text.Trim("[API KEY]"),
     OrgIdText = Text.Trim("362"),
 
     // Single request — same route as scripts/api_scripts/export_assets.py

@@ -6,10 +6,10 @@ Replicates the console acquisition workflow programmatically:
   2. Find endpoint (asset) by name or ID
   3. Select an acquisition profile
   4. Create or reuse a case
-  5. Assign the acquisition task (POST /acquisitions/assign-task)
+  5. Start acquisition (POST /api/public/acquisitions/acquire)
   6. Optionally poll until task completes
 
-NOTE: The POST /acquisitions/assign-task request body schema is inferred from
+NOTE: The POST /api/public/acquisitions/acquire request body schema is inferred from
 SDK patterns and may need adjustment. The script prints the full request and
 response bodies to aid debugging. Use --dry-run to preview without sending.
 """
@@ -25,11 +25,26 @@ sys.path.insert(0, _PROJECT_ROOT)
 sys.path.insert(0, os.path.join(_PROJECT_ROOT, "scripts"))
 
 from lib.api_client import load_config, api_get, api_post
+from lib.binalyze_acquisitions import acquisition_profile_id_for_acquire
 from lib.pagination import paginate_get
 
 
 DEFAULT_POLL_INTERVAL = 10
 TERMINAL_STATUSES = {"completed", "failed", "cancelled", "error"}
+CASE_VISIBILITY_VALUES = frozenset(
+    ("public-to-organization", "private-to-users")
+)
+
+
+def _normalize_case_visibility(case_visibility):
+    v = (case_visibility or "public-to-organization").strip()
+    if v not in CASE_VISIBILITY_VALUES:
+        print(
+            "Error: case visibility must be 'public-to-organization' or 'private-to-users'.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    return v
 
 
 # ---------------------------------------------------------------------------
@@ -69,10 +84,20 @@ def find_endpoint(air_host, api_token, identifier, org_id):
         print(f"Error: No endpoint found matching '{identifier}'", file=sys.stderr)
         sys.exit(1)
 
+    ident_norm = identifier.strip().lower()
     # Exact name match preferred
     for asset in assets:
-        if asset.get("name", "").lower() == identifier.lower():
+        if (asset.get("name") or "").strip().lower() == ident_norm:
             return asset
+
+    # Substring/fuzzy search: disambiguate FQDN vs short hostname (first DNS label).
+    def _label(n):
+        s = (n or "").strip().lower()
+        return s.split(".", 1)[0] if s else ""
+
+    by_label = [a for a in assets if _label(a.get("name")) == ident_norm]
+    if len(by_label) == 1:
+        return by_label[0]
 
     if len(assets) == 1:
         return assets[0]
@@ -97,15 +122,20 @@ def find_endpoint(air_host, api_token, identifier, org_id):
             print(f"  Enter a number between 1 and {len(assets)}.")
 
 
-def list_profiles(air_host, api_token):
+def list_profiles(air_host, api_token, org_id):
+    params = {"filter[organizationIds]": org_id}
     return paginate_get(
-        air_host, api_token, "/api/public/acquisitions/profiles", verbose=False,
+        air_host,
+        api_token,
+        "/api/public/acquisitions/profiles",
+        params=params,
+        verbose=False,
     )
 
 
-def resolve_profile(air_host, api_token, profile_id=None, profile_name=None):
+def resolve_profile(air_host, api_token, org_id, profile_id=None, profile_name=None):
     """Find a profile by ID, by name, or let the user pick interactively."""
-    profiles = list_profiles(air_host, api_token)
+    profiles = list_profiles(air_host, api_token, org_id)
     if not profiles:
         print("Error: No acquisition profiles found.", file=sys.stderr)
         sys.exit(1)
@@ -146,8 +176,15 @@ def resolve_profile(air_host, api_token, profile_id=None, profile_name=None):
             print(f"  Enter a number between 1 and {len(profiles)}.")
 
 
-def resolve_case(air_host, api_token, org_id, case_id=None, case_name=None,
-                 endpoint_name="unknown"):
+def resolve_case(
+    air_host,
+    api_token,
+    org_id,
+    case_id=None,
+    case_name=None,
+    endpoint_name="unknown",
+    case_visibility=None,
+):
     """Fetch an existing case or create a new one."""
     if case_id:
         resp = api_get(air_host, api_token, f"/api/public/cases/{case_id}")
@@ -166,9 +203,11 @@ def resolve_case(air_host, api_token, org_id, case_id=None, case_name=None,
         date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         case_name = f"Acquisition - {endpoint_name} - {date_str}"
 
+    visibility = _normalize_case_visibility(case_visibility)
     body = {
         "name": case_name,
         "organizationId": org_id,
+        "visibility": visibility,
     }
     print(f"  Creating case: {case_name}")
     resp = api_post(air_host, api_token, "/api/public/cases", body=body)
@@ -182,20 +221,21 @@ def resolve_case(air_host, api_token, org_id, case_id=None, case_name=None,
     return case
 
 
-def assign_acquisition(air_host, api_token, case_id, endpoint_id, profile_id,
+def assign_acquisition(air_host, api_token, case_id, endpoint_name, profile_id,
                        org_id, dry_run=False):
-    """Call POST /acquisitions/assign-task. Prints request/response for debugging."""
+    """Call POST /api/public/acquisitions/acquire. Prints request/response for debugging."""
     body = {
         "caseId": case_id,
-        "endpointIds": [endpoint_id],
-        "profileId": profile_id,
-        "organizationId": org_id,
+        "droneConfig": {"autoPilot": False, "enabled": False},
+        "taskConfig": {"choice": "use-policy"},
+        "acquisitionProfileId": profile_id,
+        "filter": {"name": endpoint_name, "organizationIds": [int(org_id)]},
     }
 
     print(f"\n{'─'*70}")
-    print("ASSIGN ACQUISITION TASK")
+    print("ACQUIRE EVIDENCE (POST /acquisitions/acquire)")
     print(f"{'─'*70}\n")
-    print(f"  POST /api/public/acquisitions/assign-task")
+    print(f"  POST /api/public/acquisitions/acquire")
     print(f"  Request body:")
     print(f"  {json.dumps(body, indent=4)}")
 
@@ -203,7 +243,7 @@ def assign_acquisition(air_host, api_token, case_id, endpoint_id, profile_id,
         print(f"\n  [DRY RUN] Stopping before API call.")
         return None
 
-    resp = api_post(air_host, api_token, "/api/public/acquisitions/assign-task", body=body)
+    resp = api_post(air_host, api_token, "/api/public/acquisitions/acquire", body=body)
 
     print(f"\n  Response: HTTP {resp.status_code}")
     try:
@@ -213,7 +253,7 @@ def assign_acquisition(air_host, api_token, case_id, endpoint_id, profile_id,
         print(f"  {resp.text[:2000]}")
 
     if not resp.ok:
-        print(f"\nError: assign-task failed with HTTP {resp.status_code}.", file=sys.stderr)
+        print(f"\nError: POST /acquisitions/acquire failed with HTTP {resp.status_code}.", file=sys.stderr)
         print("The request body schema is a best guess and may need adjustment.",
               file=sys.stderr)
         print("Check the response above for clues on the expected format.",
@@ -273,7 +313,8 @@ def print_usage():
     print("  --profile-name NAME   Find acquisition profile by name")
     print("  --poll                Poll for task completion after assignment")
     print("  --poll-interval SECS  Seconds between status checks (default: 10)")
-    print("  --dry-run             Show what would be sent without calling assign-task")
+    print("  --dry-run             Show what would be sent without calling POST /acquisitions/acquire")
+    print("  --case-visibility V   public-to-organization | private-to-users (default: public)")
     print()
     print("Examples:")
     print("  python3 scripts/api_scripts/case_acquire.py 362 WORKSTATION-01")
@@ -292,6 +333,7 @@ def parse_args(argv):
         "poll": False,
         "poll_interval": DEFAULT_POLL_INTERVAL,
         "dry_run": False,
+        "case_visibility": "public-to-organization",
     }
 
     positional = []
@@ -318,6 +360,9 @@ def parse_args(argv):
         elif argv[i] == "--dry-run":
             args["dry_run"] = True
             i += 1
+        elif argv[i] == "--case-visibility" and i + 1 < len(argv):
+            args["case_visibility"] = argv[i + 1]
+            i += 2
         elif argv[i] in ("--help", "-h"):
             print_usage()
             sys.exit(0)
@@ -366,13 +411,13 @@ def main():
         # Step 3: Resolve acquisition profile
         print(f"\nResolving acquisition profile...", flush=True)
         profile = resolve_profile(
-            air_host, api_token,
+            air_host, api_token, org_id,
             profile_id=args["profile_id"],
             profile_name=args["profile_name"],
         )
-        profile_id = profile.get("_id") or profile.get("id")
         profile_name = profile.get("name", "Unknown")
-        print(f"  Profile: {profile_name} (ID: {profile_id})")
+        profile_id = acquisition_profile_id_for_acquire(profile, profile_name)
+        print(f"  Profile: {profile_name} (acquire profileId={profile_id!r})")
 
         # Step 4: Resolve case
         print(f"\nResolving case...", flush=True)
@@ -381,14 +426,15 @@ def main():
             case_id=args["case_id"],
             case_name=args["case_name"],
             endpoint_name=endpoint_name,
+            case_visibility=args["case_visibility"],
         )
         case_id = case.get("_id") or case.get("id")
         print(f"  Case: {case.get('name', 'Unknown')} ({case_id})")
         print(f"  Status: {case.get('status', 'N/A')}")
 
-        # Step 5: Assign acquisition task
+        # Step 5: POST /acquisitions/acquire
         result = assign_acquisition(
-            air_host, api_token, case_id, endpoint_id, profile_id, org_id,
+            air_host, api_token, case_id, endpoint_name, profile_id, org_id,
             dry_run=args["dry_run"],
         )
 

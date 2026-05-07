@@ -473,7 +473,7 @@ Both `/api/public/endpoints` and `/api/public/assets` paths are supported (alias
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/api/public/acquisitions/assign-task` | Assign evidence acquisition task |
+| `POST` | `/api/public/acquisitions/acquire` | Assign evidence acquisition task |
 | `POST` | `/api/public/acquisitions/image` | Acquire disk image |
 | `POST` | `/api/public/acquisitions/portable-disk-image` | Create portable disk image task |
 | `POST` | `/api/public/acquisitions/off-network` | Create off-network acquisition task file |

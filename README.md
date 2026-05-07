@@ -25,12 +25,20 @@ slate/
       case_download_evidence.py
       case_extract_findings.py
       case_acquire.py
+      create_case.py           # Create a Binalyze case (org + name)
+      isolation_status.py      # Check isolation-related task status per endpoint
+      workflow_isolation.py    # Interactive Binalyze + XSOAR isolation workflow
+    package_xsoar_isolation_pack.py  # Refresh vendor/ under deliverables/ XSOAR pack
     test_data_generators/     # Local data helpers (e.g. filter asset exports)
       filter_enumerate_assets_output.py
   test_data/                  # Sample / test inputs (optional)
   output/                     # Data outputs -- CSV, JSON, SQLite (gitignored)
+  deliverables/               # Client-ready drops (e.g. XSOAR pack zip source)
+    cortex-xsoar-binalyze-isolation-workflow/
   docs/                       # Documentation
     API_README.md             # API endpoint reference
+    WORKFLOW_ISOLATION.md     # Binalyze + XSOAR isolation CLI and API notes
+    WORKFLOW_ISOLATION_LAYPERSON.md  # Plain-language Windows guide (lab / skip-xsoar first)
     DATA_STRUCTURE.md         # Entity hierarchy and data flow
     HARDENING.md              # Production hardening notes
     SCALABILITY.md            # 10k endpoint scale analysis
@@ -187,7 +195,7 @@ Options:
 - `--profile-name NAME` -- find profile by name
 - `--poll` -- poll for task completion after assignment
 - `--poll-interval SECS` -- seconds between status checks (default: 10)
-- `--dry-run` -- show what would be sent without calling assign-task
+- `--dry-run` -- show what would be sent without calling POST /acquisitions/acquire
 
 ### wrkfl_process_analysis.py
 
@@ -242,7 +250,7 @@ Key endpoints used:
 | `GET /api/public/cases/{id}/tasks`                                                          | Get case tasks          |
 | `GET /api/public/assets`                                                                    | List/search assets      |
 | `GET /api/public/acquisitions/profiles`                                                     | List acq. profiles      |
-| `POST /api/public/acquisitions/assign-task`                                                 | Assign acquisition task |
+| `POST /api/public/acquisitions/acquire`                                                     | Assign acquisition task |
 | `POST /api/public/investigation-hub/investigations/{id}/sections`                           | List evidence sections  |
 | `POST /api/public/investigation-hub/investigations/{id}/platform/{p}/evidence-category/{c}` | Download evidence data  |
 

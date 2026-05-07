@@ -20,10 +20,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and thi
 
 ### Added
 
-- `scripts/api_scripts/case_acquire.py` -- full end-to-end acquisition workflow via API: find endpoint, select acquisition profile, create or reuse a case, and assign the acquisition task with `POST /acquisitions/assign-task`. Supports `--dry-run` to preview the request, `--poll` to wait for task completion, and interactive or fully-automated profile/case selection.
+- `scripts/api_scripts/case_acquire.py` -- full end-to-end acquisition workflow via API: find endpoint, select acquisition profile, create or reuse a case, and start acquisition with `POST /api/public/acquisitions/acquire`. Supports `--dry-run` to preview the request, `--poll` to wait for task completion, and interactive or fully-automated profile/case selection.
 - README: documented `case_acquire.py` with usage examples and options
 - README: added `case_acquire.py` and `docs/DATA_STRUCTURE.md` to project structure tree
-- README: added new key endpoints (`POST /cases`, `GET /assets`, `GET /acquisitions/profiles`, `POST /acquisitions/assign-task`) to reference table
+- README: added new key endpoints (`POST /cases`, `GET /assets`, `GET /acquisitions/profiles`, `POST /acquisitions/acquire`) to reference table
 
 ## [0.3.1] - 2026-03-17
 

@@ -3,8 +3,8 @@ Binalyze AIR asset isolation tasks.
 
 Request shape aligns with the Cortex XSOAR Binalyze AIR integration parameters
 (hostname, organization_id, case_id, isolation enable/disable) mapped to the
-public REST style used by assign-task style endpoints (organizationId, caseId,
-endpointIds, isolation).
+public REST style used by task-style endpoints (enabled, filter.organizationIds,
+filter.endpointIds, optional caseId).
 
 If your tenant returns 4xx, capture the request/response and adjust
 build_isolation_request_body() accordingly (see docs/WORKFLOW_ISOLATION.md).
@@ -25,10 +25,16 @@ def build_isolation_request_body(
     case_id: Optional[str] = None,
     enable: bool = True,
 ) -> dict:
+    try:
+        org_ids = [int(organization_id)]
+    except (TypeError, ValueError):
+        org_ids = [organization_id]
     body: Dict[str, Any] = {
-        "organizationId": organization_id,
-        "endpointIds": list(endpoint_ids),
-        "isolation": "enable" if enable else "disable",
+        "enabled": enable,
+        "filter": {
+            "organizationIds": org_ids,
+            "endpointIds": list(endpoint_ids),
+        },
     }
     if case_id:
         body["caseId"] = case_id

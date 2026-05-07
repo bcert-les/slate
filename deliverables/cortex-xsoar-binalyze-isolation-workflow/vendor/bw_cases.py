@@ -7,8 +7,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from .api_client import api_get, api_post
-from .pagination import paginate_get
+from bw_api_client import api_get, api_post
+from bw_pagination import paginate_get
 
 
 class AssetResolveError(Exception):
@@ -114,7 +114,6 @@ def find_asset_strict(
             f"Multiple endpoints with hostname '{identifier}': {names!r}"
         )
 
-    # Search often returns substring/fuzzy hits; match first DNS label (short vs FQDN).
     by_label = [a for a in assets if _primary_host_label(a.get("name")) == ident_norm]
     if len(by_label) == 1:
         return by_label[0]

@@ -5,12 +5,16 @@ Uses the same paginated result shape as GET /api/public/assets when the API
 supports page/pageSize query parameters on this route. Writes JSON and CSV
 in the same layout as enumerate_assets.py.
 
-Default POST body (when --body-file is omitted):
+Default POST body (when --body-file and --preset are omitted):
 
     {"filter": {"organizationIds": ["<org_id>"]}}
 
-Override the body with --body-file (full JSON object). For custom filters,
-keep organizationIds inside filter if your tenant expects that shape.
+Use **`--preset isolated`** for isolated-only inventory (`filter` includes a
+boolean isolated flag; see `lib/binalyze_asset_filter.py`).
+
+Override the body with **`--body-file`** (full JSON object). Do not combine
+`--body-file` with `--preset`. For custom filters, keep `organizationIds`
+inside `filter` if your tenant expects that shape.
 """
 import argparse
 import csv
@@ -24,6 +28,10 @@ sys.path.insert(0, _PROJECT_ROOT)
 sys.path.insert(0, os.path.join(_PROJECT_ROOT, "scripts"))
 
 from lib.api_client import api_get, load_config
+from lib.binalyze_asset_filter import (
+    filter_assets_client_isolated_only,
+    isolated_assets_filter_body,
+)
 from lib.pagination import paginate_post
 
 
@@ -113,9 +121,16 @@ def main():
     )
     parser.add_argument("org_id", help="Organization ID (used in default body and output names)")
     parser.add_argument(
+        "--preset",
+        choices=("isolated",),
+        default=None,
+        help="Use a built-in filter body. 'isolated' = POST filter for isolated assets; "
+        "results are then narrowed to isolationStatus isolated or isolating (no --body-file).",
+    )
+    parser.add_argument(
         "--body-file",
         metavar="PATH",
-        help="JSON file to send as the POST body (replaces default filter body)",
+        help="JSON file to send as the POST body (replaces default filter body and --preset)",
     )
     parser.add_argument(
         "--page-size",
@@ -148,12 +163,17 @@ def main():
         print("org_id must be non-empty", file=sys.stderr)
         sys.exit(1)
 
+    if args.body_file and args.preset:
+        print("Use either --body-file or --preset, not both.", file=sys.stderr)
+        sys.exit(1)
     if args.body_file:
         with open(args.body_file, encoding="utf-8") as f:
             body = json.load(f)
         if not isinstance(body, dict):
             print("--body-file must contain a JSON object", file=sys.stderr)
             sys.exit(1)
+    elif args.preset == "isolated":
+        body = isolated_assets_filter_body(org_id)
     else:
         body = default_filter_body(org_id)
 
@@ -182,6 +202,8 @@ def main():
             print(f"POST {air_host}/api/public/assets/filter")
             if args.body_file:
                 print(f"Body: {args.body_file}")
+            elif args.preset == "isolated":
+                print("Body: preset isolated (POST filter, see lib/binalyze_asset_filter.py)")
             else:
                 print("Body: default filter.organizationIds")
 
@@ -193,6 +215,15 @@ def main():
             page_size=args.page_size,
             verbose=verbose,
         )
+
+        if args.preset == "isolated":
+            raw_n = len(assets)
+            assets = filter_assets_client_isolated_only(assets)
+            if verbose and raw_n != len(assets):
+                print(
+                    f"\nClient-side filter: kept {len(assets)} asset(s) with isolationStatus "
+                    f"isolated or isolating (from {raw_n} returned by API)."
+                )
 
         if verbose:
             print(f"\nRetrieved {len(assets)} asset(s).")

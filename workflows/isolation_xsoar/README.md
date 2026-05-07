@@ -13,9 +13,8 @@ prompts the operator before server-class hosts or between batches.
   BINALYZE_AIR_HOST=https://your-tenant.binalyze.com
   BINALYZE_API_TOKEN=api_your_token_here
   ```
-- XSOAR connection configured via `config/workflow_isolation.example.json` (copy to
-  `config/workflow_isolation.json` and fill in your values, or set the env variable
-  `WORKFLOW_POLICY_PATH` to point to your config file).
+- XSOAR connection configured via a policy JSON file. Set the env variable
+  `WORKFLOW_POLICY_PATH` to point to your config file.
 
 ## Usage
 
@@ -63,7 +62,7 @@ Copy `config/workflow_isolation.example.json` and customize:
 }
 ```
 
-Point to your config with `WORKFLOW_POLICY_PATH=config/workflow_isolation.json` in `.env`.
+Point to your config with `WORKFLOW_POLICY_PATH=/path/to/workflow_isolation.json` in `.env`.
 
 ## Unisolating endpoints
 

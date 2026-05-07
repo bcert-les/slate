@@ -1,8 +1,0 @@
-{
-  "max_batch_size": 5,
-  "server_hostname_regex": "(?i).*(^srv|[-_]srv|server|^dc[-0-9]).*",
-  "server_confirmation_phrase": "YES-ISOLATE-SERVER",
-  "xsoar_incident_type": "Unclassified",
-  "xsoar_severity": 2,
-  "xsoar_custom_fields": {}
-}

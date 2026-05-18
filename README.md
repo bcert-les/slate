@@ -154,6 +154,16 @@ python workflows/process_analysis/process_analysis.py
 
 Requires `BINALYZE_ORG_ID` in `.env`.
 
+### case_legal_export
+
+Interactive legal handoff export: all DRONE findings and every evidence table as CSVs,
+supplemental case metadata, chain-of-custody report with file hashes, and a ZIP archive.
+
+```bash
+python workflows/case_legal_export/case_legal_export.py
+python workflows/case_legal_export/case_legal_export.py --operator "Jane Doe" --yes
+```
+
 ## tools/
 
 ### filter_assets_output.py

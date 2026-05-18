@@ -101,6 +101,9 @@ Check `BINALYZE_AIR_HOST` and `BINALYZE_API_TOKEN` in `.env`, and that your toke
 **Warning: Investigation Hub returned no assets**  
 The API call succeeded but returned an empty asset list. This is common on **closed** cases or cases where acquisition data was never ingested into Investigation Hub. The export still runs (supplemental files, empty findings/evidence CSVs). Pick a case that shows endpoints and a non-empty investigation in the AIR UI, or verify the case has completed acquisition tasks.
 
+**`findings.csv` has headers only (no data rows)**  
+On many AIR tenants, `findings/filter` is not exposed (HTTP 404). The workflow automatically falls back to **`findings/export`**, which returns a server-generated CSV. If that file is still header-only, the investigation truly has no DRONE findings in the Hub for the selected case. Re-run with `--no-resume` after updating the script if a previous run cached an empty export in the checkpoint.
+
 ## Disclaimer
 
 This workflow produces a point-in-time export from the AIR API. It does not replace platform-native audit logs or formal e-discovery collection. Consult your legal team on admissibility and retention requirements.

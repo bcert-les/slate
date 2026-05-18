@@ -50,6 +50,12 @@ DEFAULT_PAGE_SIZE = 500
 DEFAULT_REQUEST_DELAY = 0.1
 
 FINDING_TYPES = ["dangerous", "suspicious", "relevant", "matched", "rare"]
+FINDINGS_DEFAULT_FILTER = [
+    {"column": "section", "operator": "!=", "value": "__never__"},
+]
+
+EXPORT_POLL_INTERVAL = 2.0
+EXPORT_POLL_MAX_ATTEMPTS = 60
 
 CHECKPOINT_FILE = ".checkpoint.json"
 
@@ -480,6 +486,36 @@ def save_json_data(data: Any, filename: str) -> int:
 # Streaming downloads
 # ---------------------------------------------------------------------------
 
+def build_findings_global_filter(assignment_ids: List[str]) -> Dict[str, Any]:
+    return {
+        "assignmentIds": assignment_ids,
+        "findingTypes": FINDING_TYPES,
+        "flagIds": [],
+        "mitreTechniqueIds": [],
+        "mitreTacticIds": [],
+        "dateTimeRange": None,
+    }
+
+
+def build_findings_filter_body(assignment_ids: List[str], skip: int, take: int) -> Dict[str, Any]:
+    return {
+        "globalFilter": build_findings_global_filter(assignment_ids),
+        "filter": list(FINDINGS_DEFAULT_FILTER),
+        "onlyExcludedFindings": False,
+        "skip": skip,
+        "take": take,
+        "sort": None,
+    }
+
+
+def count_csv_rows(csv_path: str) -> int:
+    if not os.path.isfile(csv_path):
+        return 0
+    with open(csv_path, encoding="utf-8", errors="replace") as f:
+        lines = [ln for ln in f if ln.strip()]
+    return max(0, len(lines) - 1) if lines else 0
+
+
 def get_findings_column_headers(air_host: str, api_token: str, investigation_id: str) -> List[str]:
     resp = api_get(
         air_host,
@@ -501,6 +537,80 @@ def get_findings_column_headers(air_host: str, api_token: str, investigation_id:
                 return list(items)
     return ["note"]
 
+def export_findings_via_server_export(
+    air_host: str,
+    api_token: str,
+    investigation_id: str,
+    assignment_ids: List[str],
+    csv_path: str,
+) -> int:
+    """
+    Download findings CSV via POST/GET .../findings/export.
+    Used when findings/filter is not available on the tenant (HTTP 404).
+    """
+    hub = f"/api/public/investigation-hub/investigations/{investigation_id}"
+    bodies = [
+        {
+            "globalFilter": build_findings_global_filter(assignment_ids),
+            "filter": list(FINDINGS_DEFAULT_FILTER),
+        },
+        {"filter": list(FINDINGS_DEFAULT_FILTER)},
+    ]
+
+    export_url = None
+    for body in bodies:
+        resp = api_post(air_host, api_token, f"{hub}/findings/export", body=body, timeout=120)
+        if resp.ok:
+            export_url = (resp.json().get("result") or {}).get("exportUrl")
+            if export_url:
+                break
+        elif resp.status_code not in (400, 404):
+            print(
+                f"\n  Findings export request failed: {resp.status_code} - {resp.text[:300]}",
+                file=sys.stderr,
+            )
+            return 0
+
+    if not export_url:
+        print("\n  Findings export request failed (no exportUrl returned).", file=sys.stderr)
+        return 0
+
+    full_url = f"{air_host}{export_url}" if export_url.startswith("/") else export_url
+    download_headers = dict(_headers(api_token))
+    download_headers["Accept"] = "*/*"
+
+    for attempt in range(EXPORT_POLL_MAX_ATTEMPTS):
+        get_resp = _request_with_retry(
+            requests.get,
+            full_url,
+            headers=download_headers,
+            timeout=120,
+        )
+        if get_resp.status_code in (404, 202) or not get_resp.content:
+            time.sleep(EXPORT_POLL_INTERVAL)
+            continue
+
+        content_type = (get_resp.headers.get("content-type") or "").lower()
+        if "json" in content_type:
+            try:
+                payload = get_resp.json()
+            except ValueError:
+                payload = {}
+            if payload.get("success") is False or payload.get("statusCode", 200) >= 400:
+                time.sleep(EXPORT_POLL_INTERVAL)
+                continue
+
+        with open(csv_path, "wb") as f:
+            f.write(get_resp.content)
+
+        row_count = count_csv_rows(csv_path)
+        print(f"  Findings export downloaded ({row_count} rows).    ")
+        return row_count
+
+    print("\n  Findings export download timed out waiting for file.", file=sys.stderr)
+    return 0
+
+
 def stream_findings_to_csv(
     air_host: str,
     api_token: str,
@@ -512,8 +622,7 @@ def stream_findings_to_csv(
 ) -> int:
     if checkpoint.data.get("findings_done"):
         if os.path.isfile(csv_path):
-            with open(csv_path, encoding="utf-8") as f:
-                return max(0, sum(1 for _ in f) - 1)
+            return count_csv_rows(csv_path)
         return checkpoint.data.get("findings_row_count", 0)
 
     skip = checkpoint.data.get("findings_skip", 0)
@@ -521,35 +630,56 @@ def stream_findings_to_csv(
     row_count = checkpoint.data.get("findings_row_count", 0)
     fieldnames: Optional[List[str]] = None
     hub = f"/api/public/investigation-hub/investigations/{investigation_id}"
+    use_server_export = checkpoint.data.get("findings_use_server_export")
 
     print("  Exporting findings...", flush=True)
 
+    if use_server_export:
+        row_count = export_findings_via_server_export(
+            air_host, api_token, investigation_id, assignment_ids, csv_path,
+        )
+        checkpoint.data["findings_row_count"] = row_count
+        checkpoint.data["findings_export_method"] = "server_export"
+        checkpoint.data["findings_done"] = True
+        checkpoint.data.setdefault("export_inventory", {})["findings_row_count"] = row_count
+        checkpoint.save()
+        return row_count
+
     while True:
-        body = {
-            "globalFilter": {
-                "assignmentIds": assignment_ids,
-                "findingTypes": FINDING_TYPES,
-                "flagIds": [],
-                "mitreTechniqueIds": [],
-                "mitreTacticIds": [],
-                "dateTimeRange": None,
-            },
-            "filter": [],
-            "onlyExcludedFindings": False,
-            "skip": skip,
-            "take": DEFAULT_PAGE_SIZE,
-            "sort": None,
-        }
+        body = build_findings_filter_body(assignment_ids, skip, DEFAULT_PAGE_SIZE)
         resp = api_post(air_host, api_token, f"{hub}/findings/filter", body=body, timeout=120)
+
+        if resp.status_code == 404:
+            print(
+                "  findings/filter not available on this tenant; using findings/export...",
+                flush=True,
+            )
+            checkpoint.data["findings_use_server_export"] = True
+            checkpoint.save()
+            return stream_findings_to_csv(
+                air_host, api_token, investigation_id, assignment_ids, csv_path, checkpoint,
+                request_delay,
+            )
+
         if not resp.ok:
-            print(f"\n  Findings API error at skip={skip}: {resp.status_code} - {resp.text[:300]}")
-            break
+            print(
+                f"\n  findings/filter error at skip={skip}: {resp.status_code} - {resp.text[:300]}",
+                file=sys.stderr,
+            )
+            print("  Trying findings/export fallback...", flush=True)
+            checkpoint.data["findings_use_server_export"] = True
+            checkpoint.save()
+            return stream_findings_to_csv(
+                air_host, api_token, investigation_id, assignment_ids, csv_path, checkpoint,
+                request_delay,
+            )
 
         result = resp.json().get("result", {})
         entities = result.get("entities", [])
         if total is None:
             total = result.get("totalCount", 0)
             print(f"  Total findings available: {total}")
+            checkpoint.data["findings_export_method"] = "filter"
             if skip > 0:
                 print(f"  Resuming findings from offset {skip}")
 
@@ -680,6 +810,7 @@ def export_supplemental(
     investigation_id: str,
     supplemental_dir: str,
     checkpoint: Checkpoint,
+    assignment_ids: Optional[List[str]] = None,
 ) -> Dict[str, int]:
     counts: Dict[str, int] = {}
     if checkpoint.data.get("supplemental_done"):
@@ -723,8 +854,9 @@ def export_supplemental(
         )
     counts["case_endpoints"] = len(endpoints)
 
-    summary_resp = api_post(air_host, api_token, f"{hub}/findings/summary", body={})
-    summary = summary_resp.json() if summary_resp.ok else {}
+    summary_body = {"globalFilter": build_findings_global_filter(assignment_ids or [])}
+    summary_resp = api_post(air_host, api_token, f"{hub}/findings/summary", body=summary_body)
+    summary = summary_resp.json() if summary_resp.ok else {"error": summary_resp.text[:500]}
     save_json_data(summary, os.path.join(supplemental_dir, "findings_summary.json"))
     counts["findings_summary"] = 1
 
@@ -1170,25 +1302,25 @@ def run_export(
     print(f"  Assignment IDs: {len(all_assignment_ids)}")
 
     supplemental_counts = export_supplemental(
-        air_host, api_token, org_id, case_id, investigation_id, supplemental_dir, checkpoint
+        air_host,
+        api_token,
+        org_id,
+        case_id,
+        investigation_id,
+        supplemental_dir,
+        checkpoint,
+        assignment_ids=all_assignment_ids,
     )
 
     findings_path = os.path.join(csv_dir, "findings.csv")
-    if not all_assignment_ids:
-        save_csv_header_only(findings_path, ["note"])
-        checkpoint.data["findings_done"] = True
-        checkpoint.data["findings_row_count"] = 0
-        checkpoint.save()
-        findings_count = 0
-    else:
-        findings_count = stream_findings_to_csv(
-            air_host,
-            api_token,
-            investigation_id,
-            all_assignment_ids,
-            findings_path,
-            checkpoint,
-        )
+    findings_count = stream_findings_to_csv(
+        air_host,
+        api_token,
+        investigation_id,
+        all_assignment_ids,
+        findings_path,
+        checkpoint,
+    )
 
     print("\nFetching evidence sections...", flush=True)
     sections_data = get_sections(air_host, api_token, investigation_id)

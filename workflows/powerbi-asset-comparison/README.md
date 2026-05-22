@@ -1,9 +1,11 @@
 # Workflow: Power BI Asset Comparison
 
-A Power Query M script that pulls the Binalyze AIR asset inventory directly into
-Power BI (or Excel) for visual comparison and reporting. Hits
-`GET /api/public/assets` in a single request with a large `pageSize`,
-deduplicates by `_id`, and returns a trimmed, analysis-friendly table.
+A Power Query M script that pulls the full Binalyze AIR asset inventory directly
+into Power BI (or Excel) for visual comparison and reporting. Uses a paginated
+loop over `GET /api/public/assets` (1,000 records per request), deduplicates by
+`_id`, and returns a trimmed, analysis-friendly table. Safe for tenants of any
+size — the previous single-shot approach hit a server-side `400 Bad Request`
+when `pageSize` exceeded 10,000.
 
 ## Files
 
@@ -37,14 +39,18 @@ To find your org ID, run `python api/list_organizations.py` from the repo root.
 
 ## How the request works
 
-- Single `GET /api/public/assets?filter[organizationIds]=<ORG_ID>&page=1&pageSize=10000` call.
+- `GetPage(n)` fetches `GET /api/public/assets?filter[organizationIds]=<ORG_ID>&page=n&pageSize=1000`.
+- Page 1 is fetched first to read `totalPageCount` from the response.
+- `List.Generate` loops from page 1 to `totalPageCount`, stopping early if a page returns no entities.
+- All page results are combined with `List.Combine` before dedup and column trimming.
 - `Accept: application/json` so AIR returns the standard wrapped response.
-- Defensive unwrapping: tries `result.entities` first, falls back to a top-level array.
-- Dedup on `_id` afterwards.
+- Defensive unwrapping: tries `result.entities` first, falls back to the root object.
+- Dedup on `_id` after combining all pages.
 - `netInterfaces` is JSON-stringified so Power BI can render the column.
 
-`pageSize=10000` is an upper bound — adjust if your tenant has more assets,
-or revert to a paginated request if it grows past that.
+`PageSize = 1000` keeps each request well under the server-enforced 10,000 cap
+(sending `pageSize=20000` returns `400 Bad Request`). Raise it toward 5,000 if
+you want fewer round-trips, but do not exceed 10,000.
 
 ## Troubleshooting
 
@@ -52,7 +58,8 @@ or revert to a paginated request if it grows past that.
 |---|---|---|
 | `401 Unauthorized` | Token doesn't have access to the tenant or org, or Power BI's data-source auth is overriding the manual `Authorization` header | Issue a valid token; in Power BI go to **File** → **Options and settings** → **Data source settings** and set the data source's auth method to **Anonymous** so the manual header is honored |
 | Empty table after refresh | Power BI is showing a cached empty result, or the org has no assets | **File** → **Options** → **Current File** → **Data Load** → **Clear Cache**, then **Home** → **Refresh** |
-| Truncated to 10,000 rows | Tenant has more assets than `PageSize` | Raise `PageSize` in the script, or restore the paginated version from git history |
+| `400 Bad Request` on refresh | `pageSize` exceeds the server cap (~10,000) | Lower `PageSize` in the script — the default of 1,000 is safe |
+| Fewer rows than expected | `totalPageCount` was not returned by the API | The loop falls back to 1 page; check the raw API response for the actual pagination field name |
 
 ## Security notes
 
@@ -73,7 +80,7 @@ token in AIR if you suspect exposure.
 
 ## Status
 
-Initial draft. The script will likely be updated to:
+Paginated — works for tenants of any size. Potential future improvements:
 
 - Pull additional asset fields once the comparison view is finalized.
 - Optionally split `netInterfaces` into separate rows or columns.

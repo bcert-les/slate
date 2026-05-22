@@ -35,6 +35,7 @@ updraft/
     acquire_evidence/         # Single-endpoint acquisition workflow
     investigation_hub/        # Evidence structure, download, findings
     process_analysis/         # Interactive Windows process frequency analysis
+    asset_decommission/       # Compare decommissioned-host CSV and uninstall stale endpoints
   tools/                      # Standalone data-processing utilities
     filter_assets_output.py   # Filter list_assets.py JSON by field
   config/
@@ -164,6 +165,18 @@ python workflows/case_legal_export/case_legal_export.py
 python workflows/case_legal_export/case_legal_export.py --operator "Jane Doe" --yes
 ```
 
+### asset_decommission
+
+Compare a "decommissioned hosts" CSV (A-list) against the live AIR asset inventory
+(B-list), then uninstall matched endpoints via the API to release license seats.
+Supports dry-run, auto hostname-column detection, and an optional purge mode.
+
+```bash
+python workflows/asset_decommission/asset_decommission.py --a-list decommissioned.csv
+python workflows/asset_decommission/asset_decommission.py --a-list decommissioned.csv --org-id 362 --yes
+python workflows/asset_decommission/asset_decommission.py --a-list decommissioned.csv --dry-run
+```
+
 ## tools/
 
 ### filter_assets_output.py
@@ -194,6 +207,8 @@ Key endpoints used:
 | `GET /api/public/acquisitions/profiles` | Acquisition profiles |
 | `POST /api/public/acquisitions/acquire` | Assign acquisition |
 | `POST /api/public/assets/tasks/isolation` | Enable/disable isolation |
+| `DELETE /api/public/assets/uninstall-without-purge` | Uninstall agent, preserve evidence |
+| `DELETE /api/public/assets/purge-and-uninstall` | Uninstall agent and delete all evidence |
 | `POST /api/public/assets/filter` | Server-side asset filter |
 | `POST /api/public/investigation-hub/investigations/{id}/sections` | Evidence sections |
 | `POST /api/public/investigation-hub/investigations/{id}/platform/{p}/evidence-category/{c}` | Download evidence |

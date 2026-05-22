@@ -7,7 +7,6 @@
 //   <ORG_ID>     e.g. 0  (default org) or 362, etc.
 //
 // Fetches ALL assets via a paginated loop — safe for any tenant size.
-// PageSize = 1000 keeps each request well under the server-side 10,000 cap
 // that causes a 400 Bad Request when exceeded.
 //
 // Output columns: name, onlineStatus, netInterfaces, lastSeen, createdAt.
@@ -17,7 +16,7 @@ let
     Host      = Text.TrimEnd(Text.Trim("<AIR_HOST>"), "/"),
     Token     = Text.Trim("<API_TOKEN>"),
     OrgIdText = Text.Trim("<ORG_ID>"),
-    PageSize  = 1000,
+    PageSize  = 10000,
     Url       = Host & "/api/public/assets",
 
     // Fetch one page; return [Entities, TotalPages]

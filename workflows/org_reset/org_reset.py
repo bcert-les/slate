@@ -77,12 +77,25 @@ def api_get(host, token, path, params=None, timeout=_DEFAULT_TIMEOUT):
     )
 
 
+def _first_id(d: dict, *keys: str, default=None):
+    """Return the first not-None value for *keys* in *d*.
+
+    Using ``or`` to chain .get() calls silently drops 0 because Python treats
+    0 as falsy.  This helper only skips None, so numeric ID 0 is preserved.
+    """
+    for k in keys:
+        v = d.get(k)
+        if v is not None:
+            return v
+    return default
+
+
 def _entity_ids_fingerprint(entities):
     ids = []
 
     for row in entities or []:
         if isinstance(row, dict):
-            oid = row.get("_id") or row.get("id") or row.get("caseId")
+            oid = _first_id(row, "_id", "id", "caseId")
             if oid is not None:
                 ids.append(str(oid))
 
@@ -218,7 +231,7 @@ def main():
     print(f"Open cases to close: {len(open_cases)}")
 
     for case in open_cases:
-        case_id = case.get("_id") or case.get("id") or case.get("caseId")
+        case_id = _first_id(case, "_id", "id", "caseId")
         name = case.get("name") or case.get("title") or "<unnamed>"
 
         print(f"  - close case: {name} ({case_id})")

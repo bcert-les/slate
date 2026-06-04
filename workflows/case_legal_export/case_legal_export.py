@@ -49,6 +49,19 @@ _MAX_ITERATIONS = 1000
 DEFAULT_PAGE_SIZE = 500
 DEFAULT_REQUEST_DELAY = 0.1
 
+
+def _first_id(d: dict, *keys: str, default=None):
+    """Return the first not-None value for *keys* in *d*.
+
+    Using ``or`` to chain .get() calls silently drops 0 because Python treats
+    0 as falsy.  This helper only skips None, so numeric ID 0 is preserved.
+    """
+    for k in keys:
+        v = d.get(k)
+        if v is not None:
+            return v
+    return default
+
 FINDING_TYPES = ["dangerous", "suspicious", "relevant", "matched", "rare"]
 FINDINGS_DEFAULT_FILTER = [
     {"column": "section", "operator": "!=", "value": "__never__"},
@@ -154,7 +167,7 @@ def _entity_ids_fingerprint(entities):
     ids = []
     for row in entities:
         if isinstance(row, dict):
-            oid = row.get("_id") or row.get("id") or row.get("endpointId")
+            oid = _first_id(row, "_id", "id", "endpointId")
             if oid is not None:
                 ids.append(str(oid))
     return tuple(sorted(ids))
@@ -1091,7 +1104,7 @@ def build_manifest_and_custody(
         },
         "source_system": {"air_host": air_host},
         "organization": {
-            "id": org.get("_id") or org.get("id"),
+            "id": _first_id(org, "_id", "id"),
             "name": org.get("name"),
         },
         "case": {
@@ -1171,7 +1184,7 @@ def select_organization(air_host: str, api_token: str) -> dict:
         sys.exit(1)
 
     def fmt(i, org):
-        oid = org.get("_id") or org.get("id")
+        oid = _first_id(org, "_id", "id")
         return f"  [{i:>3}]  {org.get('name', '?')}  (ID: {oid})"
 
     print(f"\n{'='*70}\nORGANIZATIONS\n{'='*70}")
@@ -1192,7 +1205,7 @@ def select_case(cases: list) -> dict:
     def fmt(i, case):
         name = case.get("name") or case.get("title") or "(untitled)"
         status = case.get("status", "?")
-        cid = case.get("_id") or case.get("id")
+        cid = _first_id(case, "_id", "id")
         endpoints = case.get("totalEndpoints", "?")
         inv = (case.get("metadata") or {}).get("investigationId") or "none"
         return (
@@ -1242,7 +1255,7 @@ def run_export(
     operator: Optional[str],
     resume: bool,
 ) -> str:
-    org_id = org.get("_id") or org.get("id")
+    org_id = _first_id(org, "_id", "id")
     case_id = case.get("_id")
     investigation_id = (case.get("metadata") or {}).get("investigationId")
     if not investigation_id:
@@ -1434,7 +1447,7 @@ def main():
     print(f"  Host: {air_host}")
 
     org = select_organization(air_host, api_token)
-    org_id = org.get("_id") or org.get("id")
+    org_id = _first_id(org, "_id", "id")
 
     print(f"\nFetching cases for organization {org_id}...", flush=True)
     cases = fetch_cases(air_host, api_token, org_id)
@@ -1443,7 +1456,7 @@ def main():
         sys.exit(0)
 
     selected = select_case(cases)
-    case_id = selected.get("_id") or selected.get("id")
+    case_id = _first_id(selected, "_id", "id")
     case = get_case_details(air_host, api_token, case_id, org_id)
 
     investigation_id = (case.get("metadata") or {}).get("investigationId")

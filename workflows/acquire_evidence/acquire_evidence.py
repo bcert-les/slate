@@ -127,13 +127,26 @@ def api_post(air_host, api_token, path, body=None, params=None,
     )
 
 
+def _first_id(d: dict, *keys: str, default=None):
+    """Return the first not-None value for *keys* in *d*.
+
+    Using ``or`` to chain .get() calls silently drops 0 because Python treats
+    0 as falsy.  This helper only skips None, so numeric ID 0 is preserved.
+    """
+    for k in keys:
+        v = d.get(k)
+        if v is not None:
+            return v
+    return default
+
+
 def _entity_ids_fingerprint(entities):
     if not entities:
         return ()
     ids = []
     for row in entities:
         if isinstance(row, dict):
-            oid = row.get("_id") or row.get("id") or row.get("endpointId")
+            oid = _first_id(row, "_id", "id", "endpointId")
             if oid is not None:
                 ids.append(str(oid))
     return tuple(sorted(ids))
@@ -225,8 +238,8 @@ def acquisition_profile_id_for_acquire(profile_from_list: Dict[str, Any], profil
     arg_norm = (profile_arg or "").strip().lower()
     if arg_norm in _PRESET_PROFILES:
         return arg_norm
-    ref = profile_from_list.get("_id") or profile_from_list.get("id")
-    ref_s = str(ref or "").strip()
+    ref = _first_id(profile_from_list, "_id", "id")
+    ref_s = str(ref) if ref is not None else ""
     if not ref_s:
         raise RuntimeError("Acquisition profile row has no _id/id; cannot derive profile id.")
     return ref_s
@@ -351,7 +364,7 @@ def resolve_profile(air_host, api_token, org_id, profile_id=None, profile_name=N
 
     for i, p in enumerate(profiles, 1):
         name = p.get("name", "Unnamed")
-        pid = p.get("_id") or p.get("id") or "?"
+        pid = _first_id(p, "_id", "id", default="?")
         print(f"  [{i:>3}]  {name}  (ID: {pid})")
 
     print()
@@ -407,7 +420,7 @@ def resolve_case(
         sys.exit(1)
 
     case = resp.json().get("result", resp.json())
-    print(f"  Case created: {case.get('_id') or case.get('id')}")
+    print(f"  Case created: {_first_id(case, '_id', 'id')}")
     return case
 
 
@@ -589,7 +602,7 @@ def main():
 
         print(f"\nFinding endpoint '{endpoint_identifier}'...", flush=True)
         asset = find_endpoint(air_host, api_token, endpoint_identifier, org_id)
-        endpoint_id = asset.get("_id") or asset.get("id")
+        endpoint_id = _first_id(asset, "_id", "id")
         endpoint_name = asset.get("name", "Unknown")
         print(f"  Endpoint: {endpoint_name}")
         print(f"  ID:       {endpoint_id}")
@@ -614,7 +627,7 @@ def main():
             endpoint_name=endpoint_name,
             case_visibility=args["case_visibility"],
         )
-        case_id = case.get("_id") or case.get("id")
+        case_id = _first_id(case, "_id", "id")
         print(f"  Case: {case.get('name', 'Unknown')} ({case_id})")
         print(f"  Status: {case.get('status', 'N/A')}")
 
@@ -630,9 +643,9 @@ def main():
         task_id = None
         r = result.get("result", result)
         if isinstance(r, dict):
-            task_id = r.get("taskId") or r.get("_id") or r.get("id")
+            task_id = _first_id(r, "taskId", "_id", "id")
         elif isinstance(r, list) and r:
-            task_id = r[0].get("taskId") or r[0].get("_id") or r[0].get("id")
+            task_id = _first_id(r[0], "taskId", "_id", "id")
 
         if task_id:
             print(f"\n  Task ID: {task_id}")

@@ -104,13 +104,26 @@ def api_post(air_host, api_token, path, body=None, params=None,
     )
 
 
+def _first_id(d: dict, *keys: str, default=None):
+    """Return the first not-None value for *keys* in *d*.
+
+    Using ``or`` to chain .get() calls silently drops 0 because Python treats
+    0 as falsy.  This helper only skips None, so numeric ID 0 is preserved.
+    """
+    for k in keys:
+        v = d.get(k)
+        if v is not None:
+            return v
+    return default
+
+
 def _entity_ids_fingerprint(entities):
     if not entities:
         return ()
     ids = []
     for row in entities:
         if isinstance(row, dict):
-            oid = row.get("_id") or row.get("id") or row.get("endpointId")
+            oid = _first_id(row, "_id", "id", "endpointId")
             if oid is not None:
                 ids.append(str(oid))
     return tuple(sorted(ids))
@@ -221,9 +234,9 @@ def get_case_by_investigation_id(air_host, api_token, investigation_id, org_id=N
     else:
         orgs = paginate_get(air_host, api_token, "/api/public/organizations", verbose=False)
         org_ids_to_search = [
-            o.get("_id") or o.get("id") or o.get("organizationId") for o in orgs
+            _first_id(o, "_id", "id", "organizationId") for o in orgs
         ]
-        org_ids_to_search = [oid for oid in org_ids_to_search if oid]
+        org_ids_to_search = [oid for oid in org_ids_to_search if oid is not None]
 
     for oid in org_ids_to_search:
         cases = paginate_get(

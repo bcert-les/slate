@@ -203,13 +203,26 @@ def api_post(
 # ---------------------------------------------------------------------------
 
 
+def _first_id(d: dict, *keys: str, default=None):
+    """Return the first not-None value for *keys* in *d*.
+
+    Using ``or`` to chain .get() calls silently drops 0 because Python treats
+    0 as falsy.  This helper only skips None, so numeric ID 0 is preserved.
+    """
+    for k in keys:
+        v = d.get(k)
+        if v is not None:
+            return v
+    return default
+
+
 def _entity_ids_fingerprint(entities: List[dict]) -> Tuple[str, ...]:
     if not entities:
         return ()
     ids = []
     for row in entities:
         if isinstance(row, dict):
-            oid = row.get("_id") or row.get("id") or row.get("endpointId")
+            oid = _first_id(row, "_id", "id", "endpointId")
             if oid is not None:
                 ids.append(str(oid))
     return tuple(sorted(ids))
@@ -430,8 +443,8 @@ def acquisition_profile_id_for_acquire(
     arg_norm = (profile_arg or "").strip().lower()
     if arg_norm in PRESET_PROFILES:
         return arg_norm
-    ref = profile_from_list.get("_id") or profile_from_list.get("id")
-    ref_s = str(ref or "").strip()
+    ref = _first_id(profile_from_list, "_id", "id")
+    ref_s = str(ref) if ref is not None else ""
     if not ref_s:
         raise RuntimeError("Acquisition profile row has no _id/id; cannot derive profile id.")
     return ref_s
@@ -626,7 +639,7 @@ def asset_isolation_flags(asset: dict) -> Dict[str, Any]:
 def summarize_isolation_for_asset(
     air_host: str, api_token: str, asset: dict
 ) -> Dict[str, Any]:
-    eid = asset.get("_id") or asset.get("id")
+    eid = _first_id(asset, "_id", "id")
     tasks = get_asset_tasks(air_host, api_token, str(eid))
     latest = latest_isolation_task(tasks)
     row: Dict[str, Any] = {
@@ -644,7 +657,7 @@ def summarize_isolation_for_asset(
             "name": latest.get("name"),
             "type": latest.get("type"),
             "status": latest.get("status"),
-            "taskId": latest.get("taskId") or latest.get("_id") or latest.get("id"),
+            "taskId": _first_id(latest, "taskId", "_id", "id"),
             "is_terminal": st in TERMINAL_STATUSES,
         }
     return row
@@ -737,7 +750,7 @@ def guard_non_null_hostnames(resolved: List[Tuple[str, dict]]) -> None:
     for ident, asset in resolved:
         name = asset.get("name")
         if name is None or not str(name).strip():
-            aid = asset.get("_id") or asset.get("id")
+            aid = _first_id(asset, "_id", "id")
             bad.append(f"identifier={ident!r} asset_id={aid!r} name={name!r}")
     if bad:
         print(
@@ -938,8 +951,8 @@ def main() -> None:
     case = resolve_case_new(
         air_host, api_token, org_id, case_name, case_visibility=args.case_visibility
     )
-    case_id = case.get("_id") or case.get("id")
-    if not case_id:
+    case_id = _first_id(case, "_id", "id")
+    if case_id is None:
         print("Error: case response missing _id/id.", file=sys.stderr)
         sys.exit(1)
     print(f"  Case: {case.get('name')} ({case_id})")
@@ -994,7 +1007,7 @@ def main() -> None:
         )
 
         for ident, asset in batch:
-            eid = asset.get("_id") or asset.get("id")
+            eid = _first_id(asset, "_id", "id")
             name = asset.get("name")
 
             print(f"\nSelect for acquisition: {_c(str(name), ANSI_CYAN)} ({eid})...")
@@ -1020,7 +1033,7 @@ def main() -> None:
         print(_c("SERVER PHASE: server-class endpoint acquisitions", ANSI_BOLD + ANSI_YELLOW))
         print(_c("=" * 70, ANSI_YELLOW))
         for ident, asset in server_assets:
-            eid = asset.get("_id") or asset.get("id")
+            eid = _first_id(asset, "_id", "id")
             name = asset.get("name")
             print(
                 f"\n{_c('*** Server-related tag on asset', ANSI_YELLOW)} "
@@ -1069,7 +1082,7 @@ def main() -> None:
     iso_rows: List[Dict[str, Any]] = []
     for ident, asset in resolved:
         try:
-            eid = asset.get("_id") or asset.get("id")
+            eid = _first_id(asset, "_id", "id")
             fresh = api_get(air_host, api_token, f"/api/public/assets/{eid}")
             if fresh.ok:
                 asset = fresh.json().get("result", fresh.json())
@@ -1130,8 +1143,8 @@ def main() -> None:
         refreshed_eligible: List[Tuple[str, dict]] = []
         refresh_errors: List[str] = []
         for ident, asset in eligible_endpoints:
-            eid = asset.get("_id") or asset.get("id")
-            if not eid:
+            eid = _first_id(asset, "_id", "id")
+            if eid is None:
                 refresh_errors.append(f"{ident}: missing asset id")
                 continue
             try:
@@ -1192,9 +1205,9 @@ def main() -> None:
                 uniso_endpoint_ids: List[str] = []
                 uniso_hosts: List[str] = []
                 for ident, asset in uniso_candidates:
-                    eid = asset.get("_id") or asset.get("id")
+                    eid = _first_id(asset, "_id", "id")
                     name = asset.get("name")
-                    if not eid:
+                    if eid is None:
                         uniso_errors.append(
                             f"{ident} (host={name}, asset_id={eid}): missing endpoint id"
                         )

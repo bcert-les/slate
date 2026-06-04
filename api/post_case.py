@@ -93,6 +93,19 @@ def api_post(air_host, api_token, path, body=None, params=None,
     )
 
 
+def _first_id(d: dict, *keys: str, default=None):
+    """Return the first not-None value for *keys* in *d*.
+
+    Using ``or`` to chain .get() calls silently drops 0 because Python treats
+    0 as falsy.  This helper only skips None, so numeric ID 0 is preserved.
+    """
+    for k in keys:
+        v = d.get(k)
+        if v is not None:
+            return v
+    return default
+
+
 def _default_case_name() -> str:
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     return f"API case - {ts}"
@@ -165,7 +178,7 @@ def main() -> None:
 
     data = resp.json()
     case = data.get("result", data)
-    cid = case.get("_id") or case.get("id") or case.get("caseId")
+    cid = _first_id(case, "_id", "id", "caseId")
     print(f"\nCreated case ID: {cid}")
     print(f"Status:          {case.get('status', 'N/A')}")
     if args.print_json:

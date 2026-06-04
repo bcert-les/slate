@@ -111,13 +111,26 @@ def api_post(air_host, api_token, path, body=None, params=None,
     )
 
 
+def _first_id(d: dict, *keys: str, default=None):
+    """Return the first not-None value for *keys* in *d*.
+
+    Using ``or`` to chain .get() calls silently drops 0 because Python treats
+    0 as falsy.  This helper only skips None, so numeric ID 0 is preserved.
+    """
+    for k in keys:
+        v = d.get(k)
+        if v is not None:
+            return v
+    return default
+
+
 def _entity_ids_fingerprint(entities):
     if not entities:
         return ()
     ids = []
     for row in entities:
         if isinstance(row, dict):
-            oid = row.get("_id") or row.get("id") or row.get("endpointId")
+            oid = _first_id(row, "_id", "id", "endpointId")
             if oid is not None:
                 ids.append(str(oid))
     return tuple(sorted(ids))
@@ -829,7 +842,7 @@ def _guard_hostnames(resolved: List[Tuple[str, dict]]) -> None:
     for ident, asset in resolved:
         name = asset.get("name")
         if is_null_hostname(name):
-            aid = asset.get("_id") or asset.get("id")
+            aid = _first_id(asset, "_id", "id")
             bad.append(f"identifier={ident!r} asset_id={aid!r} name={name!r}")
     if bad:
         print(
@@ -894,7 +907,7 @@ def main() -> None:
 
     case_holder: Dict[str, Any] = {}
     all_endpoint_refs = [
-        {"identifier": ident, "name": a.get("name"), "_id": a.get("_id") or a.get("id")}
+        {"identifier": ident, "name": a.get("name"), "_id": _first_id(a, "_id", "id")}
         for ident, a in resolved
     ]
 
@@ -941,7 +954,7 @@ def main() -> None:
                     case_name=args.case_name,
                     endpoint_name=first_name,
                 )
-                cid = case_obj.get("_id") or case_obj.get("id")
+                cid = _first_id(case_obj, "_id", "id")
                 case_holder["id"] = cid
                 case_holder["obj"] = case_obj
                 print(f"  Case: {case_obj.get('name')} ({cid})")
@@ -959,7 +972,7 @@ def main() -> None:
         findings_text = summarize_findings_for_xsoar(tasks)
 
         batch_refs = [
-            {"identifier": ident, "name": a.get("name"), "_id": a.get("_id") or a.get("id")}
+            {"identifier": ident, "name": a.get("name"), "_id": _first_id(a, "_id", "id")}
             for ident, a in batch
         ]
 
@@ -1008,7 +1021,7 @@ def main() -> None:
 
         print("\nAssigning isolation tasks in Binalyze AIR...")
         for ident, asset in batch:
-            eid = asset.get("_id") or asset.get("id")
+            eid = _first_id(asset, "_id", "id")
             name = asset.get("name")
             print(f"  {name} ({eid})...")
             try:
@@ -1051,7 +1064,7 @@ def main() -> None:
                 print(msg, flush=True)
 
             for ident, asset in batch:
-                eid = asset.get("_id") or asset.get("id")
+                eid = _first_id(asset, "_id", "id")
                 name = asset.get("name")
                 print(f"\nPolling isolation task for {name}...")
                 last, _ = poll_isolation_task(

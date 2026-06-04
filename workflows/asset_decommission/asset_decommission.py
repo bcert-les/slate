@@ -49,6 +49,19 @@ _WORKFLOW_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(_WORKFLOW_DIR))
 
 
+def _first_id(d: dict, *keys: str, default=None):
+    """Return the first not-None value for *keys* in *d*.
+
+    Using ``or`` to chain .get() calls silently drops 0 because Python treats
+    0 as falsy.  This helper only skips None, so numeric ID 0 is preserved.
+    """
+    for k in keys:
+        v = d.get(k)
+        if v is not None:
+            return v
+    return default
+
+
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
@@ -169,7 +182,7 @@ def _entity_ids_fingerprint(entities):
     ids = []
     for row in entities:
         if isinstance(row, dict):
-            oid = row.get("_id") or row.get("id") or row.get("endpointId")
+            oid = _first_id(row, "_id", "id", "endpointId")
             if oid is not None:
                 ids.append(str(oid))
     return tuple(sorted(ids))
@@ -286,7 +299,7 @@ def select_organization(air_host: str, api_token: str) -> dict:
         sys.exit(1)
 
     def fmt(i, org):
-        oid = org.get("_id") or org.get("id")
+        oid = _first_id(org, "_id", "id")
         return f"  [{i:>3}]  {org.get('name', '?')}  (ID: {oid})"
 
     print(f"\n{'='*70}\nORGANIZATIONS\n{'='*70}")
@@ -446,7 +459,7 @@ def compare_lists(
 
         asset = b_index.get(label) or b_index.get(full)
         if asset:
-            aid = asset.get("_id") or asset.get("id")
+            aid = _first_id(asset, "_id", "id")
             if aid not in seen_ids:
                 seen_ids.add(aid)
                 matches.append(asset)
@@ -522,8 +535,8 @@ def uninstall_assets(
     the agent next connects and processes the command. Use purge=True to
     force-remove offline/stale endpoints immediately.
     """
-    endpoint_ids = [a.get("_id") or a.get("id") for a in assets]
-    endpoint_ids = [eid for eid in endpoint_ids if eid]
+    endpoint_ids = [_first_id(a, "_id", "id") for a in assets]
+    endpoint_ids = [eid for eid in endpoint_ids if eid is not None]
 
     if not endpoint_ids:
         return 0, ["No valid endpoint IDs to uninstall."]
@@ -547,10 +560,10 @@ def check_still_present(
     """Re-fetches the asset list and returns any matched assets still present."""
     time.sleep(5)
     current = fetch_b_list(air_host, api_token, org_id, label="")
-    current_ids = {a.get("_id") or a.get("id") for a in current}
+    current_ids = {_first_id(a, "_id", "id") for a in current}
     still_present = [
         a for a in matched_assets
-        if (a.get("_id") or a.get("id")) in current_ids
+        if _first_id(a, "_id", "id") in current_ids
     ]
     return still_present
 
@@ -568,7 +581,7 @@ def print_matches(matches: List[dict]) -> None:
         print("  (none)")
         return
     for asset in matches:
-        aid = asset.get("_id") or asset.get("id") or "?"
+        aid = _first_id(asset, "_id", "id", default="?")
         name = asset.get("name") or "?"
         last_seen = _fmt_last_seen(asset)
         online = asset.get("onlineStatus") or asset.get("status") or "?"
@@ -637,7 +650,7 @@ def main() -> None:
     else:
         org = select_organization(air_host, api_token)
 
-    org_id = str(org.get("_id") or org.get("id") or "")
+    org_id = str(_first_id(org, "_id", "id", default=""))
     org_name = org.get("name") or org_id
     if not org_id:
         print("Could not determine organization ID.", file=sys.stderr)
@@ -769,7 +782,7 @@ def main() -> None:
         print("  Still present:")
         for asset in still_present:
             name = asset.get("name") or "?"
-            aid = asset.get("_id") or asset.get("id") or "?"
+            aid = _first_id(asset, "_id", "id", default="?")
             last_seen = _fmt_last_seen(asset)
             print(f"    {name:<30}  id={aid}  last seen={last_seen}")
         print()

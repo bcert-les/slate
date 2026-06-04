@@ -92,13 +92,26 @@ def api_get(air_host, api_token, path, params=None, timeout=_DEFAULT_TIMEOUT,
     )
 
 
+def _first_id(d: dict, *keys: str, default=None):
+    """Return the first not-None value for *keys* in *d*.
+
+    Using ``or`` to chain .get() calls silently drops 0 because Python treats
+    0 as falsy.  This helper only skips None, so numeric ID 0 is preserved.
+    """
+    for k in keys:
+        v = d.get(k)
+        if v is not None:
+            return v
+    return default
+
+
 def _entity_ids_fingerprint(entities):
     if not entities:
         return ()
     ids = []
     for row in entities:
         if isinstance(row, dict):
-            oid = row.get("_id") or row.get("id") or row.get("endpointId")
+            oid = _first_id(row, "_id", "id", "endpointId")
             if oid is not None:
                 ids.append(str(oid))
     return tuple(sorted(ids))
@@ -205,7 +218,7 @@ def display_findings(case_details, tasks):
     print(f"\n{'='*80}\nCASE FINDINGS REPORT\n{'='*80}\n")
 
     result = case_details.get("result", case_details)
-    print(f"Case ID:          {result.get('_id') or result.get('id')}")
+    print(f"Case ID:          {_first_id(result, '_id', 'id')}")
     print(f"Case Name:        {result.get('name', 'N/A')}")
     print(f"Organization ID:  {result.get('organizationId', 'N/A')}")
     status = result.get("status", "N/A")

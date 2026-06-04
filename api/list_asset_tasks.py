@@ -90,13 +90,26 @@ def api_get(air_host, api_token, path, params=None, timeout=_DEFAULT_TIMEOUT,
     )
 
 
+def _first_id(d: dict, *keys: str, default=None):
+    """Return the first not-None value for *keys* in *d*.
+
+    Using ``or`` to chain .get() calls silently drops 0 because Python treats
+    0 as falsy.  This helper only skips None, so numeric ID 0 is preserved.
+    """
+    for k in keys:
+        v = d.get(k)
+        if v is not None:
+            return v
+    return default
+
+
 def _entity_ids_fingerprint(entities):
     if not entities:
         return ()
     ids = []
     for row in entities:
         if isinstance(row, dict):
-            oid = row.get("_id") or row.get("id") or row.get("endpointId")
+            oid = _first_id(row, "_id", "id", "endpointId")
             if oid is not None:
                 ids.append(str(oid))
     return tuple(sorted(ids))
@@ -255,7 +268,7 @@ def main():
     try:
         try:
             asset = find_asset_strict(air_host, api_token, identifier, org_id)
-            asset_id = str(asset.get("_id") or asset.get("id"))
+            asset_id = str(_first_id(asset, "_id", "id"))
             hostname = asset.get("name", identifier)
         except AssetResolveError as e:
             print(f"Error resolving asset: {e}", file=sys.stderr)

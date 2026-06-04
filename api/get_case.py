@@ -88,6 +88,19 @@ def api_get(air_host, api_token, path, params=None, timeout=_DEFAULT_TIMEOUT,
     )
 
 
+def _first_id(d: dict, *keys: str, default=None):
+    """Return the first not-None value for *keys* in *d*.
+
+    Using ``or`` to chain .get() calls silently drops 0 because Python treats
+    0 as falsy.  This helper only skips None, so numeric ID 0 is preserved.
+    """
+    for k in keys:
+        v = d.get(k)
+        if v is not None:
+            return v
+    return default
+
+
 def main():
     if len(sys.argv) < 2:
         print("Usage: python api/get_case.py <case_id>", file=sys.stderr)
@@ -104,7 +117,7 @@ def main():
             sys.exit(1)
         data = resp.json()
         case = data.get("result", data)
-        print(f"\nCase ID:          {case.get('_id') or case.get('id')}")
+        print(f"\nCase ID:          {_first_id(case, '_id', 'id')}")
         print(f"Name:             {case.get('name')}")
         print(f"Status:           {case.get('status')}")
         print(f"Org ID:           {case.get('organizationId')}")

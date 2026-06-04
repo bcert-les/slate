@@ -1,0 +1,94 @@
+---
+description: Logging pattern for all updraft workflow scripts — --log flag, _setup_log helper, connection/HTTP error logging
+globs: workflows/**/*.py
+alwaysApply: false
+---
+
+# Updraft Workflow Logging Pattern
+
+Every workflow script must support a `--log [PATH]` CLI flag that writes a debug log file.
+
+## Required boilerplate (add near top of each script)
+
+```python
+import logging
+
+_LOG = logging.getLogger("updraft")
+
+
+def _setup_log(path) -> None:
+    """Attach a file handler to the 'updraft' logger.
+
+    path=None  → no-op
+    path=True  → auto-generate timestamped file under output/logs/
+    path=str   → write to that path
+    """
+    if not path:
+        return
+    if path is True:
+        _root = os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__)
+        )))
+        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+        script = os.path.splitext(os.path.basename(__file__))[0]
+        path = os.path.join(_root, "output", "logs", f"{script}_{ts}.log")
+    os.makedirs(os.path.dirname(os.path.abspath(path)) or ".", exist_ok=True)
+    _handler = logging.FileHandler(path, encoding="utf-8")
+    _handler.setLevel(logging.DEBUG)
+    _handler.setFormatter(logging.Formatter(
+        "%(asctime)s  %(levelname)-8s  %(message)s",
+        datefmt="%Y-%m-%dT%H:%M:%S",
+    ))
+    _LOG.setLevel(logging.DEBUG)
+    _LOG.addHandler(_handler)
+    _LOG.info("Log started  script=%s  args=%s", os.path.basename(__file__), sys.argv[1:])
+    print(f"  Logging to: {path}", flush=True)
+```
+
+## argparse — add to every parser
+
+```python
+p.add_argument(
+    "--log", metavar="PATH", nargs="?", const=True,
+    help="Write a debug log to PATH (omit PATH to auto-generate under output/logs/).",
+)
+```
+
+## _request_with_retry — log errors
+
+```python
+# On HTTP error response (non-retryable):
+if not resp.ok:
+    _LOG.warning("HTTP %s  url=%s  body=%s", resp.status_code, url, resp.text[:500])
+
+# On final retryable failure:
+_LOG.error("HTTP %s after %d attempts  url=%s", resp.status_code, retries + 1, url)
+
+# On ConnectionError/Timeout (retry):
+_LOG.warning("Connection error (attempt %d/%d)  url=%s  error=%s", attempt + 1, retries + 1, url, exc)
+
+# On ConnectionError/Timeout (final raise):
+_LOG.error("Connection failed after %d attempts  url=%s", retries + 1, url, exc_info=True)
+```
+
+## main() — call setup and log start/end
+
+```python
+_setup_log(args.log)
+_LOG.info("=== %s started  host=%s", os.path.basename(__file__), air_host)
+# ... workflow logic ...
+_LOG.info("=== completed")
+```
+
+## Unhandled exceptions
+
+```python
+except Exception as exc:
+    _LOG.exception("Unhandled error: %s", exc)
+    raise  # or sys.exit
+```
+
+## Log file location
+
+- Auto-generated: `output/logs/<scriptname>_<YYYYMMDDTHHmmss>.log`
+- Always under the repo root `output/` directory (gitignored)

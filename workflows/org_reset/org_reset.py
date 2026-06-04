@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 
 import argparse
+import logging
 import os
 import sys
 import time
+from datetime import datetime, timezone
+
 import requests
 from dotenv import load_dotenv
 
@@ -43,9 +46,12 @@ def _request_with_retry(method, url, retries=_MAX_RETRIES, **kwargs):
         resp = method(url, **kwargs)
 
         if resp.status_code not in _RETRYABLE_STATUS_CODES:
+            if not resp.ok:
+                _LOG.warning("HTTP %s  url=%s  body=%s", resp.status_code, url, resp.text[:500])
             return resp
 
         if attempt == retries:
+            _LOG.error("HTTP %s after %d attempts  url=%s", resp.status_code, retries + 1, url)
             return resp
 
         wait = backoff
@@ -56,6 +62,8 @@ def _request_with_retry(method, url, retries=_MAX_RETRIES, **kwargs):
             except ValueError:
                 pass
 
+        _LOG.warning("HTTP %s retrying in %.1fs (attempt %d/%d)  url=%s",
+                     resp.status_code, wait, attempt + 1, retries + 1, url)
         print(
             f"\n  HTTP {resp.status_code}, retrying in {wait:.1f}s "
             f"(attempt {attempt + 1}/{retries})...",
@@ -88,6 +96,42 @@ def _first_id(d: dict, *keys: str, default=None):
         if v is not None:
             return v
     return default
+
+
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+
+_LOG = logging.getLogger("updraft")
+
+
+def _setup_log(path) -> None:
+    """Attach a file handler to the 'updraft' logger.
+
+    path=None  → no-op
+    path=True  → auto-generate timestamped file under output/logs/
+    path=str   → write to that path
+    """
+    if not path:
+        return
+    if path is True:
+        _root = os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__)
+        )))
+        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+        script = os.path.splitext(os.path.basename(__file__))[0]
+        path = os.path.join(_root, "output", "logs", f"{script}_{ts}.log")
+    os.makedirs(os.path.dirname(os.path.abspath(path)) or ".", exist_ok=True)
+    _handler = logging.FileHandler(path, encoding="utf-8")
+    _handler.setLevel(logging.DEBUG)
+    _handler.setFormatter(logging.Formatter(
+        "%(asctime)s  %(levelname)-8s  %(message)s",
+        datefmt="%Y-%m-%dT%H:%M:%S",
+    ))
+    _LOG.setLevel(logging.DEBUG)
+    _LOG.addHandler(_handler)
+    _LOG.info("Log started  script=%s  args=%s", os.path.basename(__file__), sys.argv[1:])
+    print(f"  Logging to: {path}", flush=True)
 
 
 def _entity_ids_fingerprint(entities):
@@ -193,9 +237,14 @@ def main():
     parser.add_argument("--org-id", required=True)
     parser.add_argument("--yes", action="store_true", help="Actually perform changes.")
     parser.add_argument("--dry-run", action="store_true", help="Preview only. Default behavior.")
+    parser.add_argument(
+        "--log", metavar="PATH", nargs="?", const=True,
+        help="Write a debug log to PATH (omit PATH to auto-generate under output/logs/).",
+    )
     args = parser.parse_args()
 
     load_dotenv()
+    _setup_log(args.log)
 
     host = os.getenv("BINALYZE_AIR_HOST")
     token = os.getenv("BINALYZE_API_TOKEN")
@@ -204,6 +253,7 @@ def main():
         print("Missing BINALYZE_AIR_HOST or BINALYZE_API_TOKEN in .env", file=sys.stderr)
         sys.exit(1)
 
+    _LOG.info("=== org_reset started  host=%s  org=%s", host, args.org_id)
     dry_run = not args.yes
 
     session = requests.Session()

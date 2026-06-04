@@ -15,6 +15,7 @@ response bodies to aid debugging. Use --dry-run to preview without sending.
 """
 
 import json
+import logging
 import os
 import sys
 import time
@@ -78,8 +79,12 @@ def _request_with_retry(method, url, retries=_MAX_RETRIES, **kwargs):
         try:
             resp = method(url, **kwargs)
             if resp.status_code not in _RETRYABLE_STATUS_CODES:
+                if not resp.ok:
+                    _LOG.warning("HTTP %s  url=%s  body=%s", resp.status_code, url, resp.text[:500])
                 return resp
             if attempt == retries:
+                _LOG.error("HTTP %s after %d attempts  url=%s  body=%s",
+                           resp.status_code, retries + 1, url, resp.text[:500])
                 return resp
             retry_after = resp.headers.get("Retry-After")
             if retry_after:
@@ -89,6 +94,8 @@ def _request_with_retry(method, url, retries=_MAX_RETRIES, **kwargs):
                     wait = backoff
             else:
                 wait = backoff
+            _LOG.warning("HTTP %s retrying in %.1fs (attempt %d/%d)  url=%s",
+                         resp.status_code, wait, attempt + 1, retries + 1, url)
             print(f"\n  HTTP {resp.status_code}, retrying in {wait:.1f}s "
                   f"(attempt {attempt + 1}/{retries})...", file=sys.stderr, flush=True)
             time.sleep(wait)
@@ -96,7 +103,11 @@ def _request_with_retry(method, url, retries=_MAX_RETRIES, **kwargs):
         except (requests.ConnectionError, requests.Timeout) as exc:
             last_exc = exc
             if attempt == retries:
+                _LOG.error("Connection failed after %d attempts  url=%s",
+                           retries + 1, url, exc_info=True)
                 raise
+            _LOG.warning("Connection error (attempt %d/%d)  url=%s  error=%s",
+                         attempt + 1, retries + 1, url, exc)
             print(f"\n  Connection error, retrying in {backoff:.1f}s "
                   f"(attempt {attempt + 1}/{retries})...", file=sys.stderr, flush=True)
             time.sleep(backoff)
@@ -138,6 +149,42 @@ def _first_id(d: dict, *keys: str, default=None):
         if v is not None:
             return v
     return default
+
+
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+
+_LOG = logging.getLogger("updraft")
+
+
+def _setup_log(path) -> None:
+    """Attach a file handler to the 'updraft' logger.
+
+    path=None  → no-op
+    path=True  → auto-generate timestamped file under output/logs/
+    path=str   → write to that path
+    """
+    if not path:
+        return
+    if path is True:
+        _root = os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__)
+        )))
+        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+        script = os.path.splitext(os.path.basename(__file__))[0]
+        path = os.path.join(_root, "output", "logs", f"{script}_{ts}.log")
+    os.makedirs(os.path.dirname(os.path.abspath(path)) or ".", exist_ok=True)
+    _handler = logging.FileHandler(path, encoding="utf-8")
+    _handler.setLevel(logging.DEBUG)
+    _handler.setFormatter(logging.Formatter(
+        "%(asctime)s  %(levelname)-8s  %(message)s",
+        datefmt="%Y-%m-%dT%H:%M:%S",
+    ))
+    _LOG.setLevel(logging.DEBUG)
+    _LOG.addHandler(_handler)
+    _LOG.info("Log started  script=%s  args=%s", os.path.basename(__file__), sys.argv[1:])
+    print(f"  Logging to: {path}", flush=True)
 
 
 def _entity_ids_fingerprint(entities):
@@ -537,6 +584,7 @@ def parse_args(argv):
         "poll_interval": DEFAULT_POLL_INTERVAL,
         "dry_run": False,
         "case_visibility": "public-to-organization",
+        "log": None,
     }
 
     positional = []
@@ -566,6 +614,12 @@ def parse_args(argv):
         elif argv[i] == "--case-visibility" and i + 1 < len(argv):
             args["case_visibility"] = argv[i + 1]
             i += 2
+        elif argv[i] == "--log" and i + 1 < len(argv) and not argv[i + 1].startswith("--"):
+            args["log"] = argv[i + 1]
+            i += 2
+        elif argv[i] == "--log":
+            args["log"] = True
+            i += 1
         elif argv[i] in ("--help", "-h"):
             print_usage()
             sys.exit(0)
@@ -588,6 +642,8 @@ def parse_args(argv):
 def main():
     air_host, api_token = load_config()
     args = parse_args(sys.argv[1:])
+    _setup_log(args["log"])
+    _LOG.info("=== acquire_evidence started  host=%s", air_host)
 
     if not args["org_id"] or not args["endpoint"]:
         print_usage()

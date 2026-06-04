@@ -8,11 +8,14 @@ before running a more targeted download.
 Run from repository root:
   python workflows/investigation_hub/extract_findings.py <org_id> <case_id>
 """
+import argparse
 import json
+import logging
 import os
 import sys
 import time
 import warnings
+from datetime import datetime, timezone
 
 import requests
 from dotenv import load_dotenv
@@ -28,6 +31,37 @@ _BACKOFF_FACTOR = 2.0
 _RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 
 OUTPUT_DIR = os.path.join(_PROJECT_ROOT, "output")
+
+_LOG = logging.getLogger("updraft")
+
+
+def _setup_log(path) -> None:
+    """Attach a file handler to the 'updraft' logger.
+
+    path=None  → no-op
+    path=True  → auto-generate timestamped file under output/logs/
+    path=str   → write to that path
+    """
+    if not path:
+        return
+    if path is True:
+        _root = os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__)
+        )))
+        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+        script = os.path.splitext(os.path.basename(__file__))[0]
+        path = os.path.join(_root, "output", "logs", f"{script}_{ts}.log")
+    os.makedirs(os.path.dirname(os.path.abspath(path)) or ".", exist_ok=True)
+    _handler = logging.FileHandler(path, encoding="utf-8")
+    _handler.setLevel(logging.DEBUG)
+    _handler.setFormatter(logging.Formatter(
+        "%(asctime)s  %(levelname)-8s  %(message)s",
+        datefmt="%Y-%m-%dT%H:%M:%S",
+    ))
+    _LOG.setLevel(logging.DEBUG)
+    _LOG.addHandler(_handler)
+    _LOG.info("Log started  script=%s  args=%s", os.path.basename(__file__), sys.argv[1:])
+    print(f"  Logging to: {path}", flush=True)
 
 
 def load_config():
@@ -55,8 +89,12 @@ def _request_with_retry(method, url, retries=_MAX_RETRIES, **kwargs):
         try:
             resp = method(url, **kwargs)
             if resp.status_code not in _RETRYABLE_STATUS_CODES:
+                if not resp.ok:
+                    _LOG.warning("HTTP %s  url=%s  body=%s", resp.status_code, url, resp.text[:500])
                 return resp
             if attempt == retries:
+                _LOG.error("HTTP %s after %d attempts  url=%s  body=%s",
+                           resp.status_code, retries + 1, url, resp.text[:500])
                 return resp
             retry_after = resp.headers.get("Retry-After")
             if retry_after:
@@ -66,6 +104,8 @@ def _request_with_retry(method, url, retries=_MAX_RETRIES, **kwargs):
                     wait = backoff
             else:
                 wait = backoff
+            _LOG.warning("HTTP %s retrying in %.1fs (attempt %d/%d)  url=%s",
+                         resp.status_code, wait, attempt + 1, retries + 1, url)
             print(f"\n  HTTP {resp.status_code}, retrying in {wait:.1f}s "
                   f"(attempt {attempt + 1}/{retries})...", file=sys.stderr, flush=True)
             time.sleep(wait)
@@ -73,7 +113,11 @@ def _request_with_retry(method, url, retries=_MAX_RETRIES, **kwargs):
         except (requests.ConnectionError, requests.Timeout) as exc:
             last_exc = exc
             if attempt == retries:
+                _LOG.error("Connection failed after %d attempts  url=%s",
+                           retries + 1, url, exc_info=True)
                 raise
+            _LOG.warning("Connection error (attempt %d/%d)  url=%s  error=%s",
+                         attempt + 1, retries + 1, url, exc)
             print(f"\n  Connection error, retrying in {backoff:.1f}s "
                   f"(attempt {attempt + 1}/{retries})...", file=sys.stderr, flush=True)
             time.sleep(backoff)
@@ -212,15 +256,24 @@ def display_findings(endpoints_data):
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="Probe case and Investigation Hub endpoints to discover available data."
+    )
+    parser.add_argument("org_id", help="Organization ID")
+    parser.add_argument("case_id", help="Case ID")
+    parser.add_argument(
+        "--log", metavar="PATH", nargs="?", const=True,
+        help="Write a debug log to PATH (omit PATH to auto-generate under output/logs/).",
+    )
+    args = parser.parse_args()
+
     air_host, api_token = load_config()
+    _setup_log(args.log)
+    _LOG.info("=== extract_findings started  host=%s  org=%s  case=%s",
+              air_host, args.org_id, args.case_id)
 
-    if len(sys.argv) < 3:
-        print("Usage: python workflows/investigation_hub/extract_findings.py <org_id> <case_id>",
-              file=sys.stderr)
-        sys.exit(1)
-
-    org_id = sys.argv[1]
-    case_id = sys.argv[2]
+    org_id = args.org_id
+    case_id = args.case_id
 
     try:
         print(f"Looking up investigation ID for case {case_id}...", flush=True)
@@ -240,6 +293,7 @@ def main():
                 json.dump(endpoints_data, f, indent=2, ensure_ascii=False)
             print(f"Data saved to: {out_file}")
     except Exception as e:
+        _LOG.exception("Unhandled error: %s", e)
         print(f"Error: {e}", file=sys.stderr)
         import traceback
         traceback.print_exc()

@@ -21,10 +21,12 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import logging
 import os
 import sys
 import time
 import warnings
+from datetime import datetime, timezone
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 import requests
@@ -49,6 +51,41 @@ CASE_VISIBILITY_VALUES = frozenset(
 )
 
 ANSI_RESET = "\033[0m"
+
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+
+_LOG = logging.getLogger("updraft")
+
+
+def _setup_log(path) -> None:
+    """Attach a file handler to the 'updraft' logger.
+
+    path=None  → no-op
+    path=True  → auto-generate timestamped file under output/logs/
+    path=str   → write to that path
+    """
+    if not path:
+        return
+    if path is True:
+        _root = os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__)
+        )))
+        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+        script = os.path.splitext(os.path.basename(__file__))[0]
+        path = os.path.join(_root, "output", "logs", f"{script}_{ts}.log")
+    os.makedirs(os.path.dirname(os.path.abspath(path)) or ".", exist_ok=True)
+    _handler = logging.FileHandler(path, encoding="utf-8")
+    _handler.setLevel(logging.DEBUG)
+    _handler.setFormatter(logging.Formatter(
+        "%(asctime)s  %(levelname)-8s  %(message)s",
+        datefmt="%Y-%m-%dT%H:%M:%S",
+    ))
+    _LOG.setLevel(logging.DEBUG)
+    _LOG.addHandler(_handler)
+    _LOG.info("Log started  script=%s  args=%s", os.path.basename(__file__), sys.argv[1:])
+    print(f"  Logging to: {path}", flush=True)
 ANSI_RED = "\033[31m"
 ANSI_GREEN = "\033[32m"
 ANSI_YELLOW = "\033[33m"
@@ -120,8 +157,12 @@ def _request_with_retry(method, url: str, retries: int = MAX_RETRIES, **kwargs):
         try:
             resp = method(url, **kwargs)
             if resp.status_code not in RETRYABLE_STATUS_CODES:
+                if not resp.ok:
+                    _LOG.warning("HTTP %s  url=%s  body=%s", resp.status_code, url, resp.text[:500])
                 return resp
             if attempt == retries:
+                _LOG.error("HTTP %s after %d attempts  url=%s  body=%s",
+                           resp.status_code, retries + 1, url, resp.text[:500])
                 return resp
             retry_after = resp.headers.get("Retry-After")
             if retry_after:
@@ -131,6 +172,8 @@ def _request_with_retry(method, url: str, retries: int = MAX_RETRIES, **kwargs):
                     wait = backoff
             else:
                 wait = backoff
+            _LOG.warning("HTTP %s retrying in %.1fs (attempt %d/%d)  url=%s",
+                         resp.status_code, wait, attempt + 1, retries + 1, url)
             print(
                 f"\n  HTTP {resp.status_code}, retrying in {wait:.1f}s "
                 f"(attempt {attempt + 1}/{retries})...",
@@ -142,7 +185,11 @@ def _request_with_retry(method, url: str, retries: int = MAX_RETRIES, **kwargs):
         except (requests.ConnectionError, requests.Timeout) as exc:
             last_exc = exc
             if attempt == retries:
+                _LOG.error("Connection failed after %d attempts  url=%s",
+                           retries + 1, url, exc_info=True)
                 raise
+            _LOG.warning("Connection error (attempt %d/%d)  url=%s  error=%s",
+                         attempt + 1, retries + 1, url, exc)
             print(
                 f"\n  Connection error, retrying in {backoff:.1f}s "
                 f"(attempt {attempt + 1}/{retries})...",
@@ -848,6 +895,10 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
         choices=sorted(CASE_VISIBILITY_VALUES),
         help="POST /cases visibility (default: public-to-organization)",
     )
+    p.add_argument(
+        "--log", metavar="PATH", nargs="?", const=True,
+        help="Write a debug log to PATH (omit PATH to auto-generate under output/logs/).",
+    )
     return p.parse_args(argv)
 
 
@@ -863,6 +914,8 @@ def main() -> None:
         sys.exit(1)
 
     air_host, api_token = load_config()
+    _setup_log(args.log)
+    _LOG.info("=== batch_acquire started  host=%s  org=%s", air_host, org_id)
     profile_name_arg = (args.profile_name or "").strip()
     if not profile_name_arg:
         print("Error: --profile-name must be non-empty.", file=sys.stderr)

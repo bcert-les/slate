@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import logging
 import os
 import sys
 import time
@@ -63,6 +64,42 @@ def _first_id(d: dict, *keys: str, default=None):
 
 
 # ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+
+_LOG = logging.getLogger("updraft")
+
+
+def _setup_log(path) -> None:
+    """Attach a file handler to the 'updraft' logger.
+
+    path=None  → no-op
+    path=True  → auto-generate timestamped file under output/logs/
+    path=str   → write to that path
+    """
+    if not path:
+        return
+    if path is True:
+        _root = os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__)
+        )))
+        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+        script = os.path.splitext(os.path.basename(__file__))[0]
+        path = os.path.join(_root, "output", "logs", f"{script}_{ts}.log")
+    os.makedirs(os.path.dirname(os.path.abspath(path)) or ".", exist_ok=True)
+    _handler = logging.FileHandler(path, encoding="utf-8")
+    _handler.setLevel(logging.DEBUG)
+    _handler.setFormatter(logging.Formatter(
+        "%(asctime)s  %(levelname)-8s  %(message)s",
+        datefmt="%Y-%m-%dT%H:%M:%S",
+    ))
+    _LOG.setLevel(logging.DEBUG)
+    _LOG.addHandler(_handler)
+    _LOG.info("Log started  script=%s  args=%s", os.path.basename(__file__), sys.argv[1:])
+    print(f"  Logging to: {path}", flush=True)
+
+
+# ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
 
@@ -104,8 +141,12 @@ def _request_with_retry(method, url, retries=_MAX_RETRIES, **kwargs):
         try:
             resp = method(url, **kwargs)
             if resp.status_code not in _RETRYABLE_STATUS_CODES:
+                if not resp.ok:
+                    _LOG.warning("HTTP %s  url=%s  body=%s", resp.status_code, url, resp.text[:500])
                 return resp
             if attempt == retries:
+                _LOG.error("HTTP %s after %d attempts  url=%s  body=%s",
+                           resp.status_code, retries + 1, url, resp.text[:500])
                 return resp
             retry_after = resp.headers.get("Retry-After")
             if retry_after:
@@ -115,6 +156,8 @@ def _request_with_retry(method, url, retries=_MAX_RETRIES, **kwargs):
                     wait = backoff
             else:
                 wait = backoff
+            _LOG.warning("HTTP %s retrying in %.1fs (attempt %d/%d)  url=%s",
+                         resp.status_code, wait, attempt + 1, retries + 1, url)
             print(
                 f"\n  HTTP {resp.status_code}, retrying in {wait:.1f}s "
                 f"(attempt {attempt + 1}/{retries})...",
@@ -126,7 +169,11 @@ def _request_with_retry(method, url, retries=_MAX_RETRIES, **kwargs):
         except (requests.ConnectionError, requests.Timeout) as exc:
             last_exc = exc
             if attempt == retries:
+                _LOG.error("Connection failed after %d attempts  url=%s",
+                           retries + 1, url, exc_info=True)
                 raise
+            _LOG.warning("Connection error (attempt %d/%d)  url=%s  error=%s",
+                         attempt + 1, retries + 1, url, exc)
             print(
                 f"\n  Connection error, retrying in {backoff:.1f}s "
                 f"(attempt {attempt + 1}/{retries})...",
@@ -690,6 +737,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--dry-run", action="store_true", help="Preview matches but do not call the uninstall API.")
     p.add_argument("--yes", action="store_true", help="Skip confirmation prompt.")
+    p.add_argument(
+        "--log", metavar="PATH", nargs="?", const=True,
+        help="Write a debug log to PATH (omit PATH to auto-generate under output/logs/).",
+    )
     p.add_argument("--version", action="version", version=f"%(prog)s {_SCRIPT_VERSION}")
     return p
 
@@ -705,7 +756,9 @@ def main() -> None:
     # ------------------------------------------------------------------
     # 1. Load config
     # ------------------------------------------------------------------
+    _setup_log(args.log)
     air_host, api_token = load_config()
+    _LOG.info("=== asset_decommission started  host=%s", air_host)
 
     # ------------------------------------------------------------------
     # 2. Resolve organization

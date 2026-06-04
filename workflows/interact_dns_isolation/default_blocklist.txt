@@ -1,0 +1,46 @@
+# Default DNS sinkhole list for supplemental endpoint isolation.
+# Lines starting with # are ignored. One hostname per line.
+#
+# Focus: DNS bypass (DoH/DoT) and resolver hostnames so the managed hosts
+# section remains the primary name-resolution path for non-console traffic.
+# Customize or replace this file before deployment if your environment needs
+# different entries.
+
+# DNS-over-HTTPS providers
+dns.google
+dns.google.com
+dns64.dns.google
+cloudflare-dns.com
+one.one.one.one
+1.1.1.1
+1.0.0.1
+dns.cloudflare.com
+security.cloudflare-dns.com
+family.cloudflare-dns.com
+doh.opendns.com
+doh.cleanbrowsing.org
+dns.quad9.net
+dns10.quad9.net
+dns9.quad9.net
+dns.adguard.com
+dns.adguard-dns.com
+dns.nextdns.io
+doh.dns.apple.com
+doh.pub
+dns.alidns.com
+commons.host
+dns.switch.ch
+dns.digitale-gesellschaft.ch
+
+# Public resolver / DNS service hostnames
+resolver1.opendns.com
+resolver2.opendns.com
+ns1.opendns.com
+ns2.opendns.com
+dns.yandex.ru
+common.dot.dns.yandex.net
+
+# Common telemetry / update bypass paths (optional hardening)
+telemetry.microsoft.com
+v10.events.data.microsoft.com
+v20.events.data.microsoft.com

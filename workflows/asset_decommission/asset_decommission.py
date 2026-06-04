@@ -193,23 +193,39 @@ def paginate_get(
     api_token: str,
     path: str,
     params=None,
-    page_size: int = 500,
+    page_size: int = 10_000,
     verbose: bool = False,
 ) -> list:
-    base_params = dict(params or {})
+    # Strip caller-supplied pagination keys — the loop controls these.
+    # Also strips any stale pageNumber=1 that callers sometimes pass as a
+    # base param (which would otherwise freeze the page cursor at 1 forever).
+    _pagination_keys = {"page", "pageNumber", "pageSize"}
+    base_params = {k: v for k, v in (params or {}).items() if k not in _pagination_keys}
+
     all_entities: list = []
     page = 1
     seen_pages: set = set()
     seen_fingerprints: set = set()
+    total_entity_count: Optional[int] = None  # populated from first response
 
     while len(seen_pages) < _MAX_ITERATIONS:
         if page in seen_pages:
             break
         seen_pages.add(page)
 
-        request_params = {**base_params, "page": page, "pageSize": page_size}
+        # Send both 'page' and 'pageNumber': the Binalyze API uses 'pageNumber'
+        # on the assets endpoint.  Sending both keeps compatibility with
+        # endpoints that use 'page'.
+        request_params = {
+            **base_params,
+            "page": page,
+            "pageNumber": page,
+            "pageSize": page_size,
+        }
         if verbose:
-            print(f"  Fetching page {page}...", end=" ", flush=True)
+            fetched = len(all_entities)
+            of_total = f" of ~{total_entity_count:,}" if total_entity_count else ""
+            print(f"  Fetching page {page} ({fetched:,}{of_total} fetched)...", end=" ", flush=True)
 
         resp = api_get(air_host, api_token, path, params=request_params)
         if not resp.ok:
@@ -225,8 +241,30 @@ def paginate_get(
             if not entities:
                 break
 
+            # Capture total entity count from the first page so we can
+            # compute totalPageCount when the server omits it.
+            if total_entity_count is None:
+                for _key in ("totalEntityCount", "totalCount", "totalItems"):
+                    _v = result.get(_key)
+                    if _v is not None:
+                        try:
+                            total_entity_count = int(_v)
+                        except (ValueError, TypeError):
+                            pass
+                        break
+
             fp = _entity_ids_fingerprint(entities)
             if fp and fp in seen_fingerprints:
+                # API returned a page we already have — the page cursor is
+                # not advancing (likely the server requires 'pageNumber' but
+                # only received 'page', or the server has a hard cap).
+                print(
+                    f"\n  Warning: page {page} returned duplicate entities — "
+                    f"stopping at {len(all_entities):,} of "
+                    f"~{total_entity_count:,} expected.  "
+                    f"The server may not be honouring the page cursor.",
+                    file=sys.stderr,
+                )
                 break
             if fp:
                 seen_fingerprints.add(fp)
@@ -234,7 +272,16 @@ def paginate_get(
             all_entities.extend(entities)
 
             total_pages = result.get("totalPageCount")
-            current_page = result.get("currentPage", page)
+            # Fall back: compute totalPageCount from totalEntityCount when
+            # the server omits it.
+            if not total_pages and total_entity_count and page_size:
+                total_pages = -(-total_entity_count // page_size)  # ceil division
+
+            current_page = (
+                result.get("currentPage")
+                or result.get("pageNumber")
+                or page
+            )
 
             if total_pages and current_page >= total_pages:
                 break
@@ -381,15 +428,33 @@ def load_a_list(csv_path: str, hostname_column: Optional[str] = None) -> Tuple[L
 
 def fetch_b_list(air_host: str, api_token: str, org_id: str, label: str = "B-list") -> List[dict]:
     if label:
-        print(f"Fetching AIR asset inventory ({label})...", flush=True)
+        expected = count_assets(air_host, api_token, org_id)
+        if expected >= 0:
+            print(
+                f"Fetching AIR asset inventory ({label})..."
+                f"  Expected: {expected:,} endpoints",
+                flush=True,
+            )
+        else:
+            print(f"Fetching AIR asset inventory ({label})...", flush=True)
+            expected = 0
+
     assets = paginate_get(
         air_host,
         api_token,
         "/api/public/assets",
         params={"filter[organizationIds]": org_id},
-        page_size=500,
         verbose=True,
     )
+
+    if label and expected > 0 and len(assets) < expected:
+        print(
+            f"\n  Warning: fetched {len(assets):,} of {expected:,} expected endpoints "
+            f"({expected - len(assets):,} missing).  "
+            f"Results may be incomplete — check API pagination limits.",
+            file=sys.stderr,
+        )
+
     return assets
 
 
